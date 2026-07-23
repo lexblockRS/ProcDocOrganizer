@@ -39,9 +39,12 @@ class RecordingWorkspace(WorkspaceDouble):
         super().select_evidence(evidence_id)
         self.calls.append(("select_evidence", evidence_id))
 
-    def set_editor_state(self, mode, dirty, valid):
-        super().set_editor_state(mode, dirty, valid)
-        self.calls.append(("set_editor_state", mode, dirty, valid))
+    def set_editor_state(self, mode, dirty, valid, **projection):
+        super().set_editor_state(mode, dirty, valid, **projection)
+        self.calls.append(("set_editor_state", mode, dirty, valid, projection))
+
+    def _apply_editor_projection(self, mode, dirty, valid, **projection):
+        super()._apply_editor_projection(mode, dirty, valid, **projection)
 
     def show_message(self, message):
         super().show_message(message)
@@ -169,6 +172,7 @@ class EvidenceStateCharacterizationTests(unittest.TestCase):
         self.assertIsNone(workspace.selected)
         self.assertEqual(controller.mode, EvidenceEditorMode.EMPTY)
         self.assertEqual(controller.current_draft, EvidenceDraft.empty())
+        self.assertFalse(workspace.source_locked)
 
     def test_load_preserves_or_clears_selection_by_identity(self):
         first, second = evidence("A"), evidence("B")
@@ -256,13 +260,12 @@ class EvidenceStateCharacterizationTests(unittest.TestCase):
 
         self.assertEqual(controller.current_draft, controller.baseline_draft)
         self.assertEqual(workspace.draft, controller.baseline_draft)
-        self.assertEqual(
-            [
-                call for call in workspace.calls
-                if call[0] == "set_draft"
-            ],
-            [("set_draft", item.id, False, False)],
-        )
+        renders = [
+            call for call in workspace.calls
+            if call[0] == "set_editor_state"
+        ]
+        self.assertEqual(len(renders), 1)
+        self.assertEqual(renders[0][4]["draft"], controller.baseline_draft)
         self.assertEqual(controller.mode, EvidenceEditorMode.VIEWING)
 
     def test_create_and_update_save_reload_selection_and_baseline(self):
@@ -296,11 +299,12 @@ class EvidenceStateCharacterizationTests(unittest.TestCase):
 
         self.assertTrue(controller.delete())
 
-        empty_drafts = [
+        empty_renders = [
             call for call in workspace.calls
-            if call[:2] == ("set_draft", None) and call[2] is True
+            if call[0] == "set_editor_state"
+            and call[1] == EvidenceEditorMode.EMPTY
         ]
-        self.assertEqual(len(empty_drafts), 1)
+        self.assertEqual(len(empty_renders), 1)
         self.assertEqual(service.calls.count("delete"), 1)
         self.assertEqual(confirmations, [("delete", item.id)])
         self.assertEqual(controller.mode, EvidenceEditorMode.EMPTY)
@@ -335,7 +339,10 @@ class EvidenceStateCharacterizationTests(unittest.TestCase):
         workspace.calls.clear()
         controller.cancel()
         self.assertEqual(
-            len([call for call in workspace.calls if call[0] == "set_draft"]),
+            len([
+                call for call in workspace.calls
+                if call[0] == "set_editor_state"
+            ]),
             1,
         )
 
@@ -346,7 +353,10 @@ class EvidenceStateCharacterizationTests(unittest.TestCase):
         workspace.calls.clear()
         controller.cancel()
         self.assertEqual(
-            len([call for call in workspace.calls if call[0] == "set_draft"]),
+            len([
+                call for call in workspace.calls
+                if call[0] == "set_editor_state"
+            ]),
             1,
         )
         self.assertEqual(workspace.selected, item.id)
@@ -366,6 +376,54 @@ class EvidenceStateCharacterizationTests(unittest.TestCase):
         self.assertTrue(workspace.source_locked)
         self.assertEqual(workspace.source_status, EvidenceSourceStatus.AVAILABLE)
         self.assertEqual(workspace.focus_count, 2)
+
+    def test_controller_projects_source_lock_explicitly_after_transitions(self):
+        item = evidence()
+        controller, workspace, _, _, _ = make_controller((item,))
+        controller.load()
+
+        controller.start_create()
+        self.assertFalse(workspace.projection["source_locked"])
+        self.assertTrue(workspace.projection["identity_editable"])
+
+        controller.start_create_from_source(
+            EvidenceSourceCandidate(SHA_A, 4, "Trecho")
+        )
+        self.assertTrue(workspace.projection["source_locked"])
+        self.assertFalse(workspace.projection["identity_editable"])
+
+        controller.cancel()
+        self.assertFalse(workspace.projection["source_locked"])
+        controller.select(item.id)
+        self.assertTrue(workspace.projection["source_locked"])
+        controller.update_draft(
+            replace(controller.current_draft, title="Editada")
+        )
+        self.assertTrue(workspace.projection["source_locked"])
+        controller.cancel()
+        self.assertTrue(workspace.projection["source_locked"])
+        controller.clear()
+        self.assertFalse(workspace.projection["source_locked"])
+
+    def test_controller_applies_each_visual_state_without_partial_calls(self):
+        controller, workspace, _, _, _ = make_controller()
+        workspace.calls.clear()
+
+        controller.start_create_from_source(
+            EvidenceSourceCandidate(SHA_A, 4, "Trecho")
+        )
+
+        self.assertEqual(
+            len([
+                call for call in workspace.calls
+                if call[0] == "set_editor_state"
+            ]),
+            1,
+        )
+        self.assertFalse(any(
+            call[0] in ("set_draft", "set_source_status")
+            for call in workspace.calls
+        ))
 
     def test_service_failures_preserve_or_report_current_state(self):
         for operation in ("list_all", "availability", "create", "update", "delete"):

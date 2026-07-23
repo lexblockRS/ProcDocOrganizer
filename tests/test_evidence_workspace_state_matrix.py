@@ -51,6 +51,25 @@ def snapshot(workspace):
     )
 
 
+def apply_projection(workspace, mode, dirty, valid, draft, locked=False):
+    creating = mode == EvidenceEditorMode.CREATING
+    workspace._apply_editor_projection(
+        mode,
+        dirty,
+        valid,
+        draft=draft,
+        source_status=None,
+        source_locked=locked,
+        editor_enabled=mode != EvidenceEditorMode.EMPTY,
+        identity_editable=creating and not locked,
+        save_enabled=dirty and valid,
+        cancel_enabled=dirty or creating,
+        delete_enabled=mode in (
+            EvidenceEditorMode.VIEWING, EvidenceEditorMode.EDITING
+        ),
+    )
+
+
 class EvidenceWorkspaceStateMatrixTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -98,12 +117,9 @@ class EvidenceWorkspaceStateMatrixTests(unittest.TestCase):
             with self.subTest(name=name):
                 self.workspace.clear()
                 draft = valid if valid_flag else EvidenceDraft.empty()
-                self.workspace.set_draft(
-                    draft,
-                    creating=mode == EvidenceEditorMode.CREATING,
-                    source_locked=locked,
+                apply_projection(
+                    self.workspace, mode, dirty, valid_flag, draft, locked
                 )
-                self.workspace.set_editor_state(mode, dirty, valid_flag)
                 state = snapshot(self.workspace)
                 self.assertEqual(
                     (
@@ -195,23 +211,53 @@ class EvidenceWorkspaceStateMatrixTests(unittest.TestCase):
         self.workspace.set_evidences((first, second))
         self.assertEqual(snapshot(self.workspace).selected_id, second.id)
 
-        self.workspace.set_draft(
+        apply_projection(
+            self.workspace,
+            EvidenceEditorMode.CREATING,
+            True,
+            True,
             EvidenceDraft.from_evidence(second),
-            creating=True,
-            source_locked=True,
-        )
-        self.workspace.set_editor_state(
-            EvidenceEditorMode.CREATING, True, True
+            True,
         )
         self.assertTrue(snapshot(self.workspace).identity_read_only)
 
-        self.workspace.set_draft(EvidenceDraft.from_evidence(first))
-        self.workspace.set_editor_state(
-            EvidenceEditorMode.VIEWING, False, True
+        apply_projection(
+            self.workspace,
+            EvidenceEditorMode.VIEWING,
+            False,
+            True,
+            EvidenceDraft.from_evidence(first),
+            True,
         )
         self.assertTrue(snapshot(self.workspace).identity_read_only)
         self.workspace.clear()
         self.assertTrue(snapshot(self.workspace).identity_read_only)
+
+    def test_workspace_does_not_infer_lock_from_draft_identity(self):
+        draft = EvidenceDraft(
+            document_identity="a" * 64, title="Documento"
+        )
+
+        apply_projection(
+            self.workspace,
+            EvidenceEditorMode.CREATING,
+            True,
+            True,
+            draft,
+            False,
+        )
+        self.assertFalse(snapshot(self.workspace).identity_read_only)
+
+        apply_projection(
+            self.workspace,
+            EvidenceEditorMode.CREATING,
+            True,
+            True,
+            draft,
+            True,
+        )
+        self.assertTrue(snapshot(self.workspace).identity_read_only)
+        self.assertFalse(hasattr(self.workspace, "_source_locked"))
 
     def test_project_hooks_preserve_open_state_and_clear_closed_state(self):
         item = make_evidence()

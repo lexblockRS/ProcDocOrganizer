@@ -61,8 +61,18 @@ class WorkspaceDouble:
     def select_evidence(self, evidence_id):
         self.selected = evidence_id
 
-    def set_editor_state(self, mode, dirty, valid):
+    def set_editor_state(self, mode, dirty, valid, **projection):
         self.state = (mode, dirty, valid)
+        if "draft" in projection:
+            self.draft = projection["draft"]
+        if "source_status" in projection:
+            self.source_status = projection["source_status"]
+        if "source_locked" in projection:
+            self.source_locked = projection["source_locked"]
+        self.projection = projection
+
+    def _apply_editor_projection(self, mode, dirty, valid, **projection):
+        self.set_editor_state(mode, dirty, valid, **projection)
 
     def show_message(self, message):
         self.message = message

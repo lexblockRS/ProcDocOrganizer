@@ -24,7 +24,6 @@ class EvidenceWorkspace(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._source_locked = False
         self.new_button = QPushButton("Nova evidência")
         self.save_button = QPushButton("Salvar")
         self.cancel_button = QPushButton("Cancelar")
@@ -82,7 +81,6 @@ class EvidenceWorkspace(QWidget):
     def set_draft(
         self, draft: EvidenceDraft, creating=False, source_locked=False
     ) -> None:
-        self._source_locked = source_locked
         self.editor_widget.set_draft(draft, creating and not source_locked)
 
     def set_source_status(self, status) -> None:
@@ -96,10 +94,36 @@ class EvidenceWorkspace(QWidget):
         creating = mode_value == "creating"
         active = mode_value in ("creating", "viewing", "editing")
         selected = mode_value in ("viewing", "editing")
-        self.editor_widget.set_editable(active, creating and not self._source_locked)
+        self.editor_widget.set_editable(active, creating)
         self.save_button.setEnabled(dirty and minimally_valid)
         self.cancel_button.setEnabled(dirty or creating)
         self.delete_button.setEnabled(selected)
+        self.new_button.setEnabled(True)
+        self.dirty_label.setText("Alterações não salvas" if dirty else "")
+
+    def _apply_editor_projection(
+        self,
+        mode,
+        dirty,
+        minimally_valid,
+        *,
+        draft,
+        source_status,
+        source_locked,
+        editor_enabled,
+        identity_editable,
+        save_enabled,
+        cancel_enabled,
+        delete_enabled,
+    ) -> None:
+        self.editor_widget.set_draft(draft, identity_editable)
+        self.source_status_widget.set_status(source_status)
+        self.editor_widget.set_editable(
+            editor_enabled, identity_editable
+        )
+        self.save_button.setEnabled(save_enabled)
+        self.cancel_button.setEnabled(cancel_enabled)
+        self.delete_button.setEnabled(delete_enabled)
         self.new_button.setEnabled(True)
         self.dirty_label.setText("Alterações não salvas" if dirty else "")
 
@@ -110,7 +134,6 @@ class EvidenceWorkspace(QWidget):
         self.editor_widget.focus_title()
 
     def clear(self) -> None:
-        self._source_locked = False
         self.list_widget.clear()
         self.editor_widget.clear()
         self.editor_widget.set_editable(False)

@@ -38,6 +38,8 @@ class EvidenceController:
         self.current_draft = EvidenceDraft.empty()
         self.baseline_draft = EvidenceDraft.empty()
         self.mode = EvidenceEditorMode.EMPTY
+        self._source_locked = False
+        self._rendered_source_status = None
         self._connect()
         self._render_state()
 
@@ -222,9 +224,9 @@ class EvidenceController:
         self.current_draft = draft
         self.baseline_draft = draft
         self.mode = EvidenceEditorMode.VIEWING
+        self._source_locked = True
+        self._rendered_source_status = self._source_status(evidence)
         self.workspace.select_evidence(evidence.id)
-        self.workspace.set_draft(draft)
-        self.workspace.set_source_status(self._source_status(evidence))
         self.workspace.show_message("")
         self._render_state()
         return True
@@ -264,8 +266,6 @@ class EvidenceController:
             self._render_state()
             return
         self.workspace.select_evidence(None)
-        self.workspace.set_draft(self.current_draft, creating=True)
-        self.workspace.set_source_status(None)
         self._render_state()
 
     def _start_creation(
@@ -276,9 +276,9 @@ class EvidenceController:
         self.current_draft = draft
         self.baseline_draft = EvidenceDraft.empty()
         self.mode = EvidenceEditorMode.CREATING
+        self._source_locked = source_locked
+        self._rendered_source_status = source_status
         self.workspace.select_evidence(None)
-        self.workspace.set_draft(draft, creating=True, source_locked=source_locked)
-        self.workspace.set_source_status(source_status)
         self.workspace.show_message(message)
         self._render_state()
         self.workspace.focus_title()
@@ -287,7 +287,6 @@ class EvidenceController:
         self.current_draft = self.baseline_draft
         self.mode = EvidenceEditorMode.VIEWING
         if render:
-            self.workspace.set_draft(self.current_draft)
             self._render_state()
 
     def _reset_editor_state(self) -> None:
@@ -295,6 +294,8 @@ class EvidenceController:
         self.current_draft = EvidenceDraft.empty()
         self.baseline_draft = EvidenceDraft.empty()
         self.mode = EvidenceEditorMode.EMPTY
+        self._source_locked = False
+        self._rendered_source_status = None
 
     def _find(self, evidence_id):
         return next((item for item in self.evidences if item.id == evidence_id), None)
@@ -310,8 +311,45 @@ class EvidenceController:
             return EvidenceSourceStatus.UNAVAILABLE
 
     def _render_state(self) -> None:
+        minimally_valid = self.current_draft.is_minimally_valid()
+        creating = self.mode == EvidenceEditorMode.CREATING
+        active = self.mode in (
+            EvidenceEditorMode.CREATING,
+            EvidenceEditorMode.VIEWING,
+            EvidenceEditorMode.EDITING,
+        )
+        selected = self.mode in (
+            EvidenceEditorMode.VIEWING,
+            EvidenceEditorMode.EDITING,
+        )
+        projection = dict(
+            draft=self.current_draft,
+            source_status=self._rendered_source_status,
+            source_locked=self._source_locked,
+            editor_enabled=active,
+            identity_editable=creating and not self._source_locked,
+            save_enabled=self.dirty and minimally_valid,
+            cancel_enabled=self.dirty or creating,
+            delete_enabled=selected,
+        )
+        apply_projection = getattr(
+            self.workspace, "_apply_editor_projection", None
+        )
+        if apply_projection is not None:
+            apply_projection(
+                self.mode, self.dirty, minimally_valid, **projection
+            )
+            return
+        if hasattr(self.workspace, "set_draft"):
+            self.workspace.set_draft(
+                self.current_draft,
+                creating=creating,
+                source_locked=self._source_locked,
+            )
+        if hasattr(self.workspace, "set_source_status"):
+            self.workspace.set_source_status(self._rendered_source_status)
         self.workspace.set_editor_state(
-            self.mode, self.dirty, self.current_draft.is_minimally_valid()
+            self.mode, self.dirty, minimally_valid
         )
 
     def _show_error(self, error) -> None:
