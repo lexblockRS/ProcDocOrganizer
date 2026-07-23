@@ -241,7 +241,7 @@ class EvidenceStateCharacterizationTests(unittest.TestCase):
         self.assertFalse(controller.dirty)
         self.assertEqual(controller.mode, EvidenceEditorMode.VIEWING)
 
-    def test_can_leave_discard_changes_controller_but_not_workspace_render(self):
+    def test_can_leave_discard_restores_controller_and_workspace_render(self):
         item = evidence()
         controller, workspace, _, _, _ = make_controller(
             (item,), decisions=("discard",)
@@ -250,14 +250,20 @@ class EvidenceStateCharacterizationTests(unittest.TestCase):
         controller.select(item.id)
         changed = replace(controller.current_draft, title="Alterada")
         controller.update_draft(changed)
-        rendered_before = workspace.draft
+        workspace.calls.clear()
 
         self.assertTrue(controller.can_leave())
 
-        # Dependência de ordem atual: can_leave não redesenha após discard.
         self.assertEqual(controller.current_draft, controller.baseline_draft)
-        self.assertEqual(workspace.draft, rendered_before)
         self.assertEqual(workspace.draft, controller.baseline_draft)
+        self.assertEqual(
+            [
+                call for call in workspace.calls
+                if call[0] == "set_draft"
+            ],
+            [("set_draft", item.id, False, False)],
+        )
+        self.assertEqual(controller.mode, EvidenceEditorMode.VIEWING)
 
     def test_create_and_update_save_reload_selection_and_baseline(self):
         controller, workspace, service, notifications, _ = make_controller()
@@ -281,7 +287,7 @@ class EvidenceStateCharacterizationTests(unittest.TestCase):
         self.assertEqual(controller.current_draft, controller.baseline_draft)
         self.assertEqual(notifications[-1][0], "success")
 
-    def test_delete_currently_performs_two_empty_visual_resets(self):
+    def test_delete_performs_one_empty_visual_reset(self):
         item = evidence()
         controller, workspace, service, _, confirmations = make_controller((item,))
         controller.load()
@@ -294,10 +300,57 @@ class EvidenceStateCharacterizationTests(unittest.TestCase):
             call for call in workspace.calls
             if call[:2] == ("set_draft", None) and call[2] is True
         ]
-        self.assertEqual(len(empty_drafts), 2)
+        self.assertEqual(len(empty_drafts), 1)
         self.assertEqual(service.calls.count("delete"), 1)
         self.assertEqual(confirmations, [("delete", item.id)])
         self.assertEqual(controller.mode, EvidenceEditorMode.EMPTY)
+
+    def test_each_reload_lists_once_and_calculates_each_status_once(self):
+        first, second = evidence("A"), evidence("B")
+
+        class CountingService(ServiceDouble):
+            def __init__(self, items):
+                super().__init__(items)
+                self.status_calls = []
+
+            def is_source_available(self, item):
+                self.status_calls.append(item.id)
+                return super().is_source_available(item)
+
+        service = CountingService((first, second))
+        controller, _, _, _, _ = make_controller(service=service)
+
+        self.assertTrue(controller.load())
+
+        self.assertEqual(service.calls.count("list_all"), 1)
+        self.assertCountEqual(service.status_calls, (first.id, second.id))
+        self.assertEqual(len(service.status_calls), 2)
+
+    def test_cancel_creation_and_editing_each_render_one_transition(self):
+        item = evidence()
+        controller, workspace, _, _, _ = make_controller((item,))
+        controller.load()
+
+        controller.start_create()
+        workspace.calls.clear()
+        controller.cancel()
+        self.assertEqual(
+            len([call for call in workspace.calls if call[0] == "set_draft"]),
+            1,
+        )
+
+        controller.select(item.id)
+        controller.update_draft(
+            replace(controller.current_draft, title="Alterada")
+        )
+        workspace.calls.clear()
+        controller.cancel()
+        self.assertEqual(
+            len([call for call in workspace.calls if call[0] == "set_draft"]),
+            1,
+        )
+        self.assertEqual(workspace.selected, item.id)
+        self.assertEqual(workspace.draft, controller.baseline_draft)
 
     def test_source_candidate_locks_source_and_manual_create_does_not(self):
         controller, workspace, _, _, _ = make_controller()

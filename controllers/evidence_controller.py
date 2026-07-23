@@ -62,20 +62,13 @@ class EvidenceController:
             if preserve_selection and self.selected_evidence else None
         )
         try:
-            self.evidences = tuple(self.service.list_all())
-            statuses = {
-                evidence.id: self._source_status(evidence)
-                for evidence in self.evidences
-            }
+            self._reload_evidences(
+                selected_id=selected_id,
+                clear_selection=not preserve_selection,
+            )
         except EvidenceServiceError as exc:
             self._show_error(exc)
             return False
-        self.workspace.set_evidences(self.evidences, statuses)
-        if selected_id and self._find(selected_id):
-            self._select(selected_id)
-        elif self.selected_evidence and not self._find(self.selected_evidence.id):
-            self._set_empty()
-        self._render_state()
         return True
 
     def select(self, evidence_id) -> bool:
@@ -84,13 +77,13 @@ class EvidenceController:
         if self.selected_evidence and evidence_id == self.selected_evidence.id:
             return True
         previous_id = self.selected_evidence.id if self.selected_evidence else None
-        if self.dirty and not self._resolve_unsaved():
+        if self.dirty and not self._resolve_unsaved(render_discard=False):
             self.workspace.select_evidence(previous_id)
             return False
         return self._select(evidence_id)
 
     def start_create(self) -> bool:
-        if self.dirty and not self._resolve_unsaved():
+        if self.dirty and not self._resolve_unsaved(render_discard=False):
             return False
         self._start_creation(EvidenceDraft.empty())
         return True
@@ -100,7 +93,7 @@ class EvidenceController:
     ) -> bool:
         if self.service is None:
             return False
-        if self.dirty and not self._resolve_unsaved():
+        if self.dirty and not self._resolve_unsaved(render_discard=False):
             return False
         try:
             draft = EvidenceDraft.from_source_candidate(candidate)
@@ -153,7 +146,7 @@ class EvidenceController:
         except (ValueError, EvidenceServiceError) as exc:
             self._show_error(exc)
             return False
-        self._reload_after_save(saved.id)
+        self._reload_evidences(selected_id=saved.id)
         self.notify("success", message)
         return True
 
@@ -172,8 +165,7 @@ class EvidenceController:
         except EvidenceServiceError as exc:
             self._show_error(exc)
             return False
-        self.load(preserve_selection=False)
-        self._set_empty()
+        self._reload_evidences(clear_selection=True)
         self.notify(
             "success" if deleted else "info",
             "Evidência excluída com sucesso." if deleted
@@ -186,9 +178,7 @@ class EvidenceController:
 
     def clear(self) -> None:
         self.evidences = ()
-        self._reset_editor_state()
-        self.workspace.clear()
-        self._render_state()
+        self._set_empty(clear_workspace=True)
 
     def _connect(self) -> None:
         self.workspace.new_requested.connect(self.start_create)
@@ -239,27 +229,40 @@ class EvidenceController:
         self._render_state()
         return True
 
-    def _resolve_unsaved(self) -> bool:
+    def _resolve_unsaved(self, *, render_discard=True) -> bool:
         decision = self.confirm_unsaved()
         if decision == "save":
             return self.save()
         if decision == "discard":
             if self.mode == EvidenceEditorMode.CREATING:
-                self._set_empty()
+                if render_discard:
+                    self._set_empty()
+                else:
+                    self._reset_editor_state()
             else:
-                self._restore_baseline(render=False)
+                self._restore_baseline(render=render_discard)
             return True
         return False
 
-    def _reload_after_save(self, evidence_id) -> None:
-        self.current_draft = self.baseline_draft
+    def _reload_evidences(
+        self, *, selected_id=None, clear_selection=False
+    ) -> None:
         self.evidences = tuple(self.service.list_all())
         statuses = {item.id: self._source_status(item) for item in self.evidences}
         self.workspace.set_evidences(self.evidences, statuses)
-        self._select(evidence_id)
+        if selected_id is not None and self._find(selected_id):
+            self._select(selected_id)
+        elif clear_selection or self.selected_evidence is not None:
+            self._set_empty()
+        else:
+            self._render_state()
 
-    def _set_empty(self) -> None:
+    def _set_empty(self, *, clear_workspace=False) -> None:
         self._reset_editor_state()
+        if clear_workspace:
+            self.workspace.clear()
+            self._render_state()
+            return
         self.workspace.select_evidence(None)
         self.workspace.set_draft(self.current_draft, creating=True)
         self.workspace.set_source_status(None)
