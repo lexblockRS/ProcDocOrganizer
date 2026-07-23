@@ -101,6 +101,22 @@ class EvidenceWidgetTests(unittest.TestCase):
         self.assertIs(window.stack.currentWidget(), window.evidence_workspace)
         window.close()
 
+    def test_project_close_hook_does_not_clear_evidence_twice(self):
+        window = MainWindow()
+        calls = []
+        window.evidence_workspace.on_project_closed = (
+            lambda: calls.append("evidence")
+        )
+        window.documents_workspace.on_project_closed = (
+            lambda: calls.append("documents")
+        )
+
+        window.clear_project()
+
+        self.assertNotIn("evidence", calls)
+        self.assertIn("documents", calls)
+        window.close()
+
 
 if __name__ == "__main__":
     unittest.main()

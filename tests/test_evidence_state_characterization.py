@@ -403,7 +403,7 @@ class EvidenceStateCharacterizationTests(unittest.TestCase):
         controller.cancel()
         self.assertTrue(workspace.projection["source_locked"])
         controller.clear()
-        self.assertFalse(workspace.projection["source_locked"])
+        self.assertFalse(workspace.source_locked)
 
     def test_controller_applies_each_visual_state_without_partial_calls(self):
         controller, workspace, _, _, _ = make_controller()

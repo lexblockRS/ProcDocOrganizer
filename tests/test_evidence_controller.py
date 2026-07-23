@@ -83,6 +83,9 @@ class WorkspaceDouble:
     def clear(self):
         self.items = ()
         self.selected = None
+        self.draft = EvidenceDraft.empty()
+        self.source_status = None
+        self.source_locked = False
 
 
 class ServiceDouble:

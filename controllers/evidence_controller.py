@@ -48,6 +48,12 @@ class EvidenceController:
         return self.current_draft != self.baseline_draft
 
     def set_service(self, service) -> None:
+        if (
+            service is None
+            and self.service is None
+            and self._presentation_is_empty()
+        ):
+            return
         self.service = service
         self.clear()
         if service is not None:
@@ -180,7 +186,8 @@ class EvidenceController:
 
     def clear(self) -> None:
         self.evidences = ()
-        self._set_empty(clear_workspace=True)
+        self._reset_editor_state()
+        self.workspace.clear()
 
     def _connect(self) -> None:
         self.workspace.new_requested.connect(self.start_create)
@@ -259,12 +266,8 @@ class EvidenceController:
         else:
             self._render_state()
 
-    def _set_empty(self, *, clear_workspace=False) -> None:
+    def _set_empty(self) -> None:
         self._reset_editor_state()
-        if clear_workspace:
-            self.workspace.clear()
-            self._render_state()
-            return
         self.workspace.select_evidence(None)
         self._render_state()
 
@@ -299,6 +302,18 @@ class EvidenceController:
 
     def _find(self, evidence_id):
         return next((item for item in self.evidences if item.id == evidence_id), None)
+
+    def _presentation_is_empty(self) -> bool:
+        empty = EvidenceDraft.empty()
+        return (
+            not self.evidences
+            and self.selected_evidence is None
+            and self.current_draft == empty
+            and self.baseline_draft == empty
+            and self.mode == EvidenceEditorMode.EMPTY
+            and not self._source_locked
+            and self._rendered_source_status is None
+        )
 
     def _source_status(self, evidence):
         try:

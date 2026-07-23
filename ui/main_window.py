@@ -376,6 +376,8 @@ class MainWindow(QMainWindow):
         self.show_view("home")
 
         for view in self.views.values():
+            if view is self.evidence_workspace:
+                continue
             callback = getattr(view, "on_project_closed", None)
             if callback is not None:
                 callback()
