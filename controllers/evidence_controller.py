@@ -92,16 +92,7 @@ class EvidenceController:
     def start_create(self) -> bool:
         if self.dirty and not self._resolve_unsaved():
             return False
-        self.selected_evidence = None
-        self.current_draft = EvidenceDraft.empty()
-        self.baseline_draft = EvidenceDraft.empty()
-        self.mode = EvidenceEditorMode.CREATING
-        self.workspace.select_evidence(None)
-        self.workspace.set_draft(self.current_draft, creating=True)
-        self.workspace.set_source_status(None)
-        self.workspace.show_message("")
-        self._render_state()
-        self.workspace.focus_title()
+        self._start_creation(EvidenceDraft.empty())
         return True
 
     def start_create_from_source(
@@ -119,24 +110,17 @@ class EvidenceController:
         except (TypeError, ValueError, EvidenceServiceError) as exc:
             self._show_error(exc)
             return False
-        self.selected_evidence = None
-        self.baseline_draft = EvidenceDraft.empty()
-        self.current_draft = draft
-        self.mode = EvidenceEditorMode.CREATING
-        self.workspace.select_evidence(None)
-        self.workspace.set_draft(draft, creating=True, source_locked=True)
-        self.workspace.set_source_status(
-            EvidenceSourceStatus.AVAILABLE
-            if available else EvidenceSourceStatus.UNAVAILABLE
-        )
-        if not available:
-            self.workspace.show_message(
+        self._start_creation(
+            draft,
+            source_locked=True,
+            source_status=(
+                EvidenceSourceStatus.AVAILABLE
+                if available else EvidenceSourceStatus.UNAVAILABLE
+            ),
+            message="" if available else (
                 "O documento deste resultado não está mais disponível no projeto."
-            )
-        else:
-            self.workspace.show_message("")
-        self._render_state()
-        self.workspace.focus_title()
+            ),
+        )
         return True
 
     def update_draft(self, draft: EvidenceDraft) -> None:
@@ -177,10 +161,7 @@ class EvidenceController:
         if self.mode == EvidenceEditorMode.CREATING:
             self._set_empty()
         elif self.selected_evidence is not None:
-            self.current_draft = self.baseline_draft
-            self.mode = EvidenceEditorMode.VIEWING
-            self.workspace.set_draft(self.current_draft)
-            self._render_state()
+            self._restore_baseline(render=True)
 
     def delete(self) -> bool:
         evidence = self.selected_evidence
@@ -205,10 +186,7 @@ class EvidenceController:
 
     def clear(self) -> None:
         self.evidences = ()
-        self.selected_evidence = None
-        self.current_draft = EvidenceDraft.empty()
-        self.baseline_draft = EvidenceDraft.empty()
-        self.mode = EvidenceEditorMode.EMPTY
+        self._reset_editor_state()
         self.workspace.clear()
         self._render_state()
 
@@ -269,8 +247,7 @@ class EvidenceController:
             if self.mode == EvidenceEditorMode.CREATING:
                 self._set_empty()
             else:
-                self.current_draft = self.baseline_draft
-                self.mode = EvidenceEditorMode.VIEWING
+                self._restore_baseline(render=False)
             return True
         return False
 
@@ -282,14 +259,39 @@ class EvidenceController:
         self._select(evidence_id)
 
     def _set_empty(self) -> None:
-        self.selected_evidence = None
-        self.current_draft = EvidenceDraft.empty()
-        self.baseline_draft = EvidenceDraft.empty()
-        self.mode = EvidenceEditorMode.EMPTY
+        self._reset_editor_state()
         self.workspace.select_evidence(None)
         self.workspace.set_draft(self.current_draft, creating=True)
         self.workspace.set_source_status(None)
         self._render_state()
+
+    def _start_creation(
+        self, draft: EvidenceDraft, *, source_locked=False,
+        source_status=None, message="",
+    ) -> None:
+        self.selected_evidence = None
+        self.current_draft = draft
+        self.baseline_draft = EvidenceDraft.empty()
+        self.mode = EvidenceEditorMode.CREATING
+        self.workspace.select_evidence(None)
+        self.workspace.set_draft(draft, creating=True, source_locked=source_locked)
+        self.workspace.set_source_status(source_status)
+        self.workspace.show_message(message)
+        self._render_state()
+        self.workspace.focus_title()
+
+    def _restore_baseline(self, *, render: bool) -> None:
+        self.current_draft = self.baseline_draft
+        self.mode = EvidenceEditorMode.VIEWING
+        if render:
+            self.workspace.set_draft(self.current_draft)
+            self._render_state()
+
+    def _reset_editor_state(self) -> None:
+        self.selected_evidence = None
+        self.current_draft = EvidenceDraft.empty()
+        self.baseline_draft = EvidenceDraft.empty()
+        self.mode = EvidenceEditorMode.EMPTY
 
     def _find(self, evidence_id):
         return next((item for item in self.evidences if item.id == evidence_id), None)
