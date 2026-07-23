@@ -5,6 +5,7 @@ Gerenciamento de projetos do ProcDocOrganizer.
 from pathlib import Path
 import shutil
 
+from database import initialize_database
 from models.project import Project
 
 
@@ -42,13 +43,21 @@ class ProjectManager:
                 project_path=project_path,
             )
 
+            initialize_database(project_path / project.database)
             project.save()
 
             return project
 
-        except Exception:
+        except Exception as exc:
 
-            self._cleanup_project(project_path)
+            try:
+                self._cleanup_project(project_path)
+
+            except OSError as cleanup_exc:
+                raise RuntimeError(
+                    "Não foi possível criar o projeto e limpar os arquivos "
+                    f"parciais. Erro original: {exc}"
+                ) from cleanup_exc
 
             raise
 
@@ -72,6 +81,7 @@ class ProjectManager:
         project = Project.load(project_file)
 
         # Atualiza a data de abertura
+        project.last_opened_at = project.now()
         project.save()
 
         return project
@@ -89,6 +99,7 @@ class ProjectManager:
         project_path.mkdir(parents=True)
 
         for folder in (
+            "documents",
             "cache",
             "exports",
             "logs",
@@ -107,4 +118,4 @@ class ProjectManager:
         """
 
         if project_path.exists():
-            shutil.rmtree(project_path, ignore_errors=True)
+            shutil.rmtree(project_path)

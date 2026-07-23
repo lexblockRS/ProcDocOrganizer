@@ -4,10 +4,10 @@ Modelo de Projeto do ProcDocOrganizer.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
+import json
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-import json
 
 
 PROJECT_FORMAT_VERSION = 1
@@ -16,7 +16,7 @@ PROJECT_FORMAT_VERSION = 1
 @dataclass
 class Project:
     """
-    Representa um projeto ProcDocOrganizer.
+    Representa um projeto do ProcDocOrganizer.
     """
 
     project_name: str
@@ -24,24 +24,24 @@ class Project:
     created_at: str
     last_opened_at: str
 
-    format_version: int = PROJECT_FORMAT_VERSION
     application: str = "ProcDocOrganizer"
+    format_version: int = PROJECT_FORMAT_VERSION
     database: str = "database.db"
 
-    # ---------------------------------------------------------
+    # ------------------------------------------------------------------
 
     @staticmethod
     def now() -> str:
         """
-        Retorna a data e hora atual em formato ISO.
+        Retorna a data/hora atual em formato ISO 8601.
         """
 
         return datetime.now().isoformat(timespec="seconds")
 
-    # ---------------------------------------------------------
+    # ------------------------------------------------------------------
 
     @classmethod
-    def create(cls, project_name: str, project_path: Path):
+    def create(cls, project_name: str, project_path: Path) -> "Project":
         """
         Cria um novo projeto em memória.
         """
@@ -55,73 +55,104 @@ class Project:
             last_opened_at=timestamp,
         )
 
-    # ---------------------------------------------------------
+    # ------------------------------------------------------------------
 
     @property
     def project_file(self) -> Path:
         """
-        Caminho do arquivo project.json.
+        Retorna o caminho do arquivo project.json.
         """
 
         return self.project_path / "project.json"
 
-    # ---------------------------------------------------------
+    # ------------------------------------------------------------------
 
     def to_dict(self) -> dict:
         """
         Converte o projeto para um dicionário.
 
-        O caminho do projeto (project_path) NÃO é salvo,
-        pois ele pode ser obtido pela localização do
-        próprio project.json.
+        O caminho do projeto não é salvo porque ele pode ser
+        reconstruído a partir da localização do project.json.
         """
 
         data = asdict(self)
 
-        # Remove o caminho do projeto antes de salvar.
         data.pop("project_path", None)
 
         return data
 
-    # ---------------------------------------------------------
+    # ------------------------------------------------------------------
+
+    def to_json(self) -> str:
+        """
+        Converte o projeto para uma string JSON.
+        """
+
+        return json.dumps(
+            self.to_dict(),
+            indent=4,
+            ensure_ascii=False,
+        )
+
+    # ------------------------------------------------------------------
 
     @classmethod
-    def from_dict(cls, data: dict):
+    def from_dict(cls, data: dict) -> "Project":
         """
-        Constrói um objeto Project a partir de um dicionário.
+        Cria um objeto Project a partir de um dicionário.
         """
 
         return cls(**data)
 
-    # ---------------------------------------------------------
-
-    def save(self):
-        """
-        Salva o projeto em project.json.
-        """
-
-        with open(self.project_file, "w", encoding="utf-8") as file:
-
-            json.dump(
-                self.to_dict(),
-                file,
-                indent=4,
-                ensure_ascii=False,
-            )
-
-    # ---------------------------------------------------------
+    # ------------------------------------------------------------------
 
     @classmethod
-    def load(cls, project_file: Path):
+    def from_json(cls, json_text: str, project_path: Path) -> "Project":
+        """
+        Cria um objeto Project a partir de um texto JSON.
+        """
+
+        data = json.loads(json_text)
+
+        data["project_path"] = project_path
+
+        return cls.from_dict(data)
+
+    # ------------------------------------------------------------------
+
+    def save(self) -> None:
+        """
+        Salva o projeto no arquivo project.json.
+        """
+
+        temporary_file = self.project_file.with_suffix(
+            self.project_file.suffix + ".tmp"
+        )
+
+        try:
+            temporary_file.write_text(
+                self.to_json(),
+                encoding="utf-8",
+            )
+
+            temporary_file.replace(self.project_file)
+
+        finally:
+            temporary_file.unlink(missing_ok=True)
+
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def load(cls, project_file: Path) -> "Project":
         """
         Carrega um projeto existente.
         """
 
-        with open(project_file, "r", encoding="utf-8") as file:
+        json_text = project_file.read_text(
+            encoding="utf-8"
+        )
 
-            data = json.load(file)
-
-        # O caminho do projeto é reconstruído automaticamente.
-        data["project_path"] = project_file.parent
-
-        return cls.from_dict(data)
+        return cls.from_json(
+            json_text,
+            project_file.parent,
+        )

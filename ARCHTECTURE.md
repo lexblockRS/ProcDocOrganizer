@@ -171,3 +171,20 @@ Exemplos futuros:
 - Outros processos administrativos além do RSC.
 
 Essas funcionalidades serão opcionais e não farão parte da versão inicial.
+## Arquivo de Projeto
+
+Cada projeto será armazenado em um arquivo com extensão:
+
+.pdop
+
+O arquivo representa um projeto do ProcDocOrganizer e armazenará:
+
+- informações gerais do projeto;
+- localização da base de dados SQLite;
+- pasta(s) monitoradas;
+- configurações do usuário;
+- preferências do projeto.
+
+Os documentos originais nunca serão armazenados dentro do arquivo .pdop.
+
+O arquivo .pdop funcionará como um "ponteiro" para todos os recursos do projeto.
