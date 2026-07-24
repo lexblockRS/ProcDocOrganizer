@@ -6,8 +6,11 @@ import sys
 
 from PySide6.QtWidgets import QApplication
 
+from applications import RscApplication
+from core.application_registry import ApplicationRegistry
 from core.project_controller import ProjectController
 from core.project_manager import ProjectManager
+from core.project_session_factory import ProjectSessionFactory
 from core.project_state import ProjectState
 from ui.main_window import MainWindow
 
@@ -42,12 +45,19 @@ class Application:
 
         # Serviços
         self.project_manager = ProjectManager()
+        self.application_registry = ApplicationRegistry([
+            RscApplication(),
+        ])
+        self.project_session_factory = ProjectSessionFactory(
+            self.application_registry
+        )
 
         # Controladores
         self.project_controller = ProjectController(
             window=self.main_window,
             manager=self.project_manager,
             state=self.project_state,
+            session_factory=self.project_session_factory,
         )
 
     # ------------------------------------------------------------------
