@@ -4,6 +4,8 @@ from typing import Protocol, runtime_checkable
 
 from models import Project
 
+from .application_contribution import ActionContribution
+
 
 @runtime_checkable
 class Application(Protocol):
@@ -20,5 +22,5 @@ class Application(Protocol):
     def can_open(self, project: Project) -> bool:
         """Informa se a Application é compatível com o projeto."""
 
-    def contributions(self) -> tuple[object, ...]:
-        """Declara contribuições opacas fornecidas pela Application."""
+    def contributions(self) -> tuple[ActionContribution, ...]:
+        """Declara ações fornecidas pela Application."""

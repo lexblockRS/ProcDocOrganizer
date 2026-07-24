@@ -1,5 +1,6 @@
 """Implementação mínima da Application RSC."""
 
+from contracts import ActionContribution
 from models import Project
 
 
@@ -15,5 +16,5 @@ class RscApplication:
             and project.application == self.application_id
         )
 
-    def contributions(self) -> tuple[object, ...]:
+    def contributions(self) -> tuple[ActionContribution, ...]:
         return ()

@@ -41,7 +41,10 @@ class RscApplicationTests(unittest.TestCase):
         self.assertFalse(application.can_open(project("other")))
 
     def test_contributions_are_empty(self):
-        self.assertEqual(RscApplication().contributions(), ())
+        contributions = RscApplication().contributions()
+
+        self.assertIsInstance(contributions, tuple)
+        self.assertEqual(contributions, ())
 
     def test_registry_resolves_rsc_application(self):
         application = RscApplication()

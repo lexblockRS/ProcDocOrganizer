@@ -12,6 +12,7 @@ from core.project_controller import ProjectController
 from core.project_manager import ProjectManager
 from core.project_session_factory import ProjectSessionFactory
 from core.project_state import ProjectState
+from ui.contribution_installer import DesktopContributionInstaller
 from ui.main_window import MainWindow
 
 
@@ -51,6 +52,9 @@ class Application:
         self.project_session_factory = ProjectSessionFactory(
             self.application_registry
         )
+        self.contribution_installer = DesktopContributionInstaller(
+            self.main_window
+        )
 
         # Controladores
         self.project_controller = ProjectController(
@@ -59,6 +63,7 @@ class Application:
             state=self.project_state,
             session_factory=self.project_session_factory,
             application_registry=self.application_registry,
+            contribution_installer=self.contribution_installer,
         )
 
     # ------------------------------------------------------------------

@@ -57,7 +57,21 @@ class WindowSpy:
         self.clear_count += 1
 
 
-def session(project, marker):
+class ContributionInstallerSpy:
+    def __init__(self):
+        self.calls = []
+
+    def install(self, contributions):
+        self.calls.append(("install", tuple(contributions)))
+
+    def replace(self, contributions):
+        self.calls.append(("replace", tuple(contributions)))
+
+    def clear(self):
+        self.calls.append(("clear",))
+
+
+def session(project, marker, application=None):
     return SimpleNamespace(
         project=project,
         document_repository=SimpleNamespace(
@@ -66,6 +80,7 @@ def session(project, marker):
         document_service=object(),
         search_service=object(),
         evidence_service=object(),
+        application=application,
     )
 
 
@@ -81,6 +96,7 @@ def controller_for_session_tests(factory, active_session=None):
     controller.search_controller = ServiceControllerSpy()
     controller.documents_controller = ServiceControllerSpy()
     controller.evidence_controller = ServiceControllerSpy()
+    controller.contribution_installer = ContributionInstallerSpy()
     return controller
 
 

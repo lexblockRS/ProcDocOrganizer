@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QDockWidget,
     QMainWindow,
+    QMenu,
     QProgressDialog,
     QSplitter,
     QStackedWidget,
@@ -35,6 +36,8 @@ class MainWindow(QMainWindow):
 
         self.project = None
         self.views = {}
+        self._base_menus_by_id: dict[str, QMenu] = {}
+        self._application_menus_by_id: dict[str, QMenu] = {}
 
         self._create_actions()
         self._create_menu()
@@ -101,6 +104,7 @@ class MainWindow(QMainWindow):
         # ---------------- Arquivo ----------------
 
         file_menu = menu.addMenu("Arquivo")
+        self._base_menus_by_id["file"] = file_menu
 
         file_menu.addAction(self.action_new_project)
         file_menu.addAction(self.action_open_project)
@@ -116,12 +120,14 @@ class MainWindow(QMainWindow):
         # ---------------- Editar ----------------
 
         edit_menu = menu.addMenu("Editar")
+        self._base_menus_by_id["edit"] = edit_menu
 
         edit_menu.addAction(self.action_preferences)
 
         # ---------------- Evidências ----------------
 
         evidence_menu = menu.addMenu("Evidências")
+        self._base_menus_by_id["evidence"] = evidence_menu
 
         evidence_menu.addAction(
             self.action_import_documents
@@ -150,6 +156,7 @@ class MainWindow(QMainWindow):
         classification_menu = menu.addMenu(
             "Classificação"
         )
+        self._base_menus_by_id["classification"] = classification_menu
 
         classification_menu.addAction(
             self.action_recalculate
@@ -157,13 +164,79 @@ class MainWindow(QMainWindow):
 
         # ---------------- Ferramentas ----------------
 
-        menu.addMenu("Ferramentas")
+        tools_menu = menu.addMenu("Ferramentas")
+        self._base_menus_by_id["tools"] = tools_menu
 
         # ---------------- Ajuda ----------------
 
         help_menu = menu.addMenu("Ajuda")
+        self._base_menus_by_id["help"] = help_menu
 
         help_menu.addAction(self.action_about)
+
+    # ------------------------------------------------------------------
+
+    def get_menu(self, menu_id: str) -> QMenu:
+        """Retorna um menu registrado pelo seu identificador estável."""
+
+        self._validate_menu_value(menu_id, "menu_id")
+
+        menu = self._base_menus_by_id.get(menu_id)
+        if menu is None:
+            menu = self._application_menus_by_id.get(menu_id)
+        if menu is None:
+            raise KeyError(f"Menu não registrado: {menu_id}.")
+
+        return menu
+
+    def create_application_menu(
+        self,
+        menu_id: str,
+        title: str,
+    ) -> QMenu:
+        """Cria e registra um menu dinâmico de nível superior."""
+
+        self._validate_menu_value(menu_id, "menu_id")
+        self._validate_menu_value(title, "title")
+
+        if (
+            menu_id in self._base_menus_by_id
+            or menu_id in self._application_menus_by_id
+        ):
+            raise ValueError(f"ID de menu já registrado: {menu_id}.")
+
+        application_menu = QMenu(title, self.menuBar())
+        self.menuBar().addMenu(application_menu)
+        self._application_menus_by_id[menu_id] = application_menu
+
+        return application_menu
+
+    def remove_application_menu(self, menu_id: str) -> None:
+        """Remove um menu dinâmico; IDs dinâmicos ausentes são ignorados."""
+
+        self._validate_menu_value(menu_id, "menu_id")
+
+        if menu_id in self._base_menus_by_id:
+            raise ValueError(
+                f"Menu permanente não pode ser removido: {menu_id}."
+            )
+
+        application_menu = self._application_menus_by_id.pop(
+            menu_id, None
+        )
+        if application_menu is None:
+            return
+
+        self.menuBar().removeAction(application_menu.menuAction())
+        application_menu.clear()
+        application_menu.deleteLater()
+
+    @staticmethod
+    def _validate_menu_value(value: str, name: str) -> None:
+        if not isinstance(value, str):
+            raise TypeError(f"{name} deve ser uma string.")
+        if not value.strip():
+            raise ValueError(f"{name} não pode ser vazio.")
 
     # ------------------------------------------------------------------
 

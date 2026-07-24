@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
 )
 
 from ui.dialogs import NewProjectDialog
+from ui.contribution_installer import DesktopContributionInstaller
 from controllers import DocumentsController, EvidenceController, SearchController
 
 from services import DocumentImporter
@@ -32,6 +33,7 @@ class ProjectController:
         window,
         manager,
         state,
+        contribution_installer: DesktopContributionInstaller,
         batch_limit: int = DEFAULT_BATCH_LIMIT,
         session_factory=None,
         application_registry=None,
@@ -42,6 +44,7 @@ class ProjectController:
         self.batch_limit = max(1, batch_limit)
         self.session_factory = session_factory or ProjectSessionFactory()
         self.application_registry = application_registry
+        self.contribution_installer = contribution_installer
 
         self.session = None
         self.selected_document = None
@@ -125,9 +128,20 @@ class ProjectController:
         """
 
         session = self.session_factory.create(project)
+        application = getattr(session, "application", None)
+        contributions = (
+            application.contributions()
+            if application is not None
+            else ()
+        )
 
-        self.state.open_project(project)
+        if self.session is None:
+            self.contribution_installer.install(contributions)
+        else:
+            self.contribution_installer.replace(contributions)
+
         self.session = session
+        self.state.open_project(project)
         self.selected_document = None
         self.search_controller.set_search_service(session.search_service)
         self.evidence_controller.set_service(session.evidence_service)
@@ -421,9 +435,11 @@ class ProjectController:
 
     def close_project(self):
         if not self.state.has_project:
+            self.contribution_installer.clear()
             return
         if not self.evidence_controller.can_leave():
             return
+        self.contribution_installer.clear()
         self.evidence_controller.set_service(None)
         self.documents_controller.set_service(None)
         self.search_controller.set_search_service(None)

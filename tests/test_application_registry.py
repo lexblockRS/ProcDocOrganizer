@@ -56,6 +56,7 @@ class ApplicationRegistryTests(unittest.TestCase):
 
         self.assertEqual(registry.applications, (application,))
         self.assertIs(registry.get("example"), application)
+        self.assertEqual(application.contribution_calls, 0)
 
     def test_duplicate_application_id_is_rejected(self):
         with self.assertRaises(DuplicateApplicationError):
