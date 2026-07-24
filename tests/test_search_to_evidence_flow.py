@@ -102,7 +102,7 @@ class SearchToEvidenceFlowTests(unittest.TestCase):
         self.assertEqual(self.current_workspace, "evidence")
         self.assertIs(self.search_workspace.selected_result(), self.hit)
         draft = self.evidence_controller.current_draft
-        self.assertEqual(draft.document_sha256, SHA)
+        self.assertEqual(draft.document_identity, SHA)
         self.assertEqual(draft.page_number, 12)
         self.assertEqual(draft.source_snippet, self.hit.snippet)
         self.assertTrue(self.evidence_controller.dirty)

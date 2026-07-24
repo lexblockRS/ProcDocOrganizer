@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 
+from contracts import Application
 from models import Project
 from services import DocumentRepository, DocumentService, EvidenceService
 from services.search import SearchService
@@ -16,3 +17,4 @@ class ProjectSession:
     document_service: DocumentService
     search_service: SearchService
     evidence_service: EvidenceService
+    application: Application | None = None

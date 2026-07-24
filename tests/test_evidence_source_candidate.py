@@ -11,7 +11,7 @@ SHA = "a" * 64
 class EvidenceSourceCandidateTests(unittest.TestCase):
     def result(self, **changes):
         values = {
-            "document_sha256": SHA,
+            "document_identity": SHA,
             "document_title": "Portaria 123/2022",
             "page_number": 6,
             "snippet": "Trecho encontrado",
@@ -43,7 +43,6 @@ class EvidenceSourceCandidateTests(unittest.TestCase):
         )
         candidate = EvidenceSourceCandidate.from_search_hit(hit)
         self.assertEqual(candidate.document_identity, SHA)
-        self.assertEqual(candidate.document_sha256, SHA)
         self.assertEqual(candidate.document_name, "Portaria 123/2022")
         self.assertEqual(candidate.page_number, 6)
         self.assertEqual(candidate.source_snippet, "Trecho encontrado")
@@ -80,7 +79,6 @@ class EvidenceSourceCandidateTests(unittest.TestCase):
             document_name="  Documento   oficial  ",
         )
         self.assertEqual(candidate.document_identity, SHA.upper())
-        self.assertEqual(candidate.document_sha256, SHA.upper())
         self.assertEqual(candidate.document_name, "Documento oficial")
         self.assertEqual(candidate.source_snippet, "linha um\nlinha dois")
 
@@ -88,7 +86,7 @@ class EvidenceSourceCandidateTests(unittest.TestCase):
         candidate = EvidenceSourceCandidate.from_search_result(self.result())
         draft = EvidenceDraft.from_source_candidate(candidate)
         self.assertIsNone(draft.evidence_id)
-        self.assertEqual(draft.document_sha256, SHA)
+        self.assertEqual(draft.document_identity, SHA)
         self.assertEqual(draft.page_number, 6)
         self.assertEqual(draft.source_snippet, "Trecho encontrado")
         self.assertEqual(draft.title, "Portaria 123/2022")

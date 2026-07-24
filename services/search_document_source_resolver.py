@@ -19,17 +19,19 @@ class SearchDocumentSourceResolver:
         )
 
     def is_document_available(self, document_identity: str) -> bool:
-        sha256 = self._sha256(document_identity)
+        stored_identity = self._stored_identity(document_identity)
+        if stored_identity is None:
+            return False
         with ProjectDatabase(self.database_path) as database:
             return database.connection.execute(
-                "SELECT 1 FROM documents WHERE sha256 = ?", (sha256,)
+                "SELECT 1 FROM documents WHERE sha256 = ?", (stored_identity,)
             ).fetchone() is not None
 
     @staticmethod
-    def _sha256(value: object) -> str:
+    def _stored_identity(value: object) -> str | None:
         normalized = value.strip().lower() if isinstance(value, str) else ""
         if len(normalized) != 64 or any(
             character not in "0123456789abcdef" for character in normalized
         ):
-            raise ValueError("A infraestrutura requer um SHA-256 válido.")
+            return None
         return normalized

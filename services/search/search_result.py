@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class SearchResult:
-    document_sha256: str
+    document_identity: str
     document_title: str | None
     page_number: int
     snippet: str

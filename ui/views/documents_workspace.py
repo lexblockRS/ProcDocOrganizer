@@ -32,9 +32,6 @@ class DocumentsWorkspace(QWidget):
         self.metadata_widget = DocumentMetadataWidget()
         self.page_list_widget = DocumentPageListWidget()
         self.text_widget = DocumentTextWidget()
-        # Aliases mantidos para a API estrutural homologada na Fase 1.
-        self.catalog_list = self.document_list_widget.list_widget
-        self.pages_list = self.page_list_widget.list_widget
 
         documents_group = self._group("Documentos", self.document_list_widget)
         metadata_group = self._group("Informações", self.metadata_widget)

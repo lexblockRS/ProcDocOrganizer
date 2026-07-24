@@ -58,7 +58,7 @@ class EvidenceRepositoryTests(unittest.TestCase):
 
     def evidence(self, **changes):
         values = {
-            "document_sha256": SHA_A,
+            "document_identity": SHA_A,
             "title": "Participação em comissão",
             "page_number": 3,
             "source_snippet": "designar o servidor",
@@ -127,7 +127,7 @@ class EvidenceRepositoryTests(unittest.TestCase):
 
     def test_list_by_document_and_multiple_documents(self):
         a = self.evidence()
-        b = self.evidence(document_sha256=SHA_B, evidence_id=str(uuid4()))
+        b = self.evidence(document_identity=SHA_B, evidence_id=str(uuid4()))
         self.repository.add(a)
         self.repository.add(b)
         self.assertEqual(self.repository.list_by_document(SHA_A), [a])
@@ -156,8 +156,8 @@ class EvidenceRepositoryTests(unittest.TestCase):
     def test_update_can_explicitly_change_existing_document_link(self):
         original = self.evidence()
         self.repository.add(original)
-        updated = self.repository.update(original.with_changes(document_sha256=SHA_B))
-        self.assertEqual(updated.document_sha256, SHA_B)
+        updated = self.repository.update(original.with_changes(document_identity=SHA_B))
+        self.assertEqual(updated.document_identity, SHA_B)
 
     def test_update_requires_existing_evidence_but_not_document_projection(self):
         with self.assertRaises(EvidenceNotFoundError):
@@ -165,9 +165,9 @@ class EvidenceRepositoryTests(unittest.TestCase):
         item = self.evidence()
         self.repository.add(item)
         updated = self.repository.update(
-            item.with_changes(document_sha256="c" * 64)
+            item.with_changes(document_identity="c" * 64)
         )
-        self.assertEqual(updated.document_sha256, "c" * 64)
+        self.assertEqual(updated.document_identity, "c" * 64)
 
     def test_delete_and_exists(self):
         item = self.evidence()
@@ -184,16 +184,15 @@ class EvidenceRepositoryTests(unittest.TestCase):
             self.repository.add(item)
 
     def test_repository_persists_without_querying_document_projection(self):
-        item = self.evidence(document_sha256="c" * 64)
+        item = self.evidence(document_identity="c" * 64)
         self.assertEqual(self.repository.add(item), item)
 
     def test_model_preserves_opaque_identity_and_normalizes_other_fields(self):
         item = self.evidence(
-            document_sha256=SHA_A.upper(), title="  Título  ", source_snippet="  ",
+            document_identity=SHA_A.upper(), title="  Título  ", source_snippet="  ",
             user_notes=None, category=" sem classificação ",
         )
         self.assertEqual(item.document_identity, SHA_A.upper())
-        self.assertEqual(item.document_sha256, SHA_A.upper())
         self.assertEqual(item.title, "Título")
         self.assertIsNone(item.source_snippet)
         self.assertEqual(item.category, "sem classificação")
@@ -262,6 +261,33 @@ class EvidenceRepositoryTests(unittest.TestCase):
         reopened = EvidenceRepository(self.database_path)
         self.assertEqual(reopened.get_by_id(item.id), item)
 
+    def test_existing_row_with_legacy_column_remains_readable(self):
+        item = self.evidence()
+        with ProjectDatabase(self.database_path) as database:
+            database.connection.execute(
+                """INSERT INTO evidences (
+                    id, document_sha256, page_number, title, source_snippet,
+                    user_notes, category, start_date, end_date, created_at,
+                    updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    item.id,
+                    item.document_identity,
+                    item.page_number,
+                    item.title,
+                    item.source_snippet,
+                    item.user_notes,
+                    item.category,
+                    item.start_date,
+                    item.end_date,
+                    item.created_at,
+                    item.updated_at,
+                ),
+            )
+            database.connection.commit()
+
+        self.assertEqual(self.repository.get_by_id(item.id), item)
+
     def test_incremental_rebuild_preserves_evidence(self):
         item = self.evidence()
         self.repository.add(item)
@@ -291,7 +317,7 @@ class EvidenceRepositoryTests(unittest.TestCase):
             item.with_changes(user_notes="Nota revisada", updated_at=UPDATED)
         )
 
-        self.assertEqual(updated.document_sha256, SHA_A)
+        self.assertEqual(updated.document_identity, SHA_A)
         self.assertEqual(updated.user_notes, "Nota revisada")
 
     def test_search_service_remains_functional_after_migration(self):
@@ -299,7 +325,7 @@ class EvidenceRepositoryTests(unittest.TestCase):
             SqliteFtsSearchIndex(self.database_path)
         ).search(SearchFilters(terms=["pesquisavel"]))
         self.assertEqual(len(results), 1)
-        self.assertEqual(results[0].document_sha256, SHA_A)
+        self.assertEqual(results[0].document_identity, SHA_A)
 
 
 if __name__ == "__main__":

@@ -113,7 +113,7 @@ class ServiceDouble:
     def create(self, request):
         self.calls.append("create")
         item = Evidence.create(
-            request.document_sha256, request.title,
+            request.document_identity, request.title,
             page_number=request.page_number, source_snippet=request.source_snippet,
             user_notes=request.user_notes, category=request.category,
             start_date=request.start_date, end_date=request.end_date,
@@ -129,7 +129,7 @@ class ServiceDouble:
         updated = Evidence(
             id=current.id, created_at=current.created_at,
             updated_at="2026-01-02T10:00:00",
-            document_sha256=request.document_sha256,
+            document_identity=request.document_identity,
             page_number=request.page_number, title=request.title,
             source_snippet=request.source_snippet, user_notes=request.user_notes,
             category=request.category, start_date=request.start_date,
@@ -158,7 +158,7 @@ class EvidenceDraftTests(unittest.TestCase):
         self.assertEqual(draft.evidence_id, item.id)
         self.assertEqual(draft.to_update_request().user_notes, "Nota")
         create = replace(draft, evidence_id=None).to_create_request()
-        self.assertEqual(create.document_sha256, SHA_A)
+        self.assertEqual(create.document_identity, SHA_A)
 
     def test_create_rejects_id_update_requires_id_and_validation_is_final(self):
         with self.assertRaises(ValueError):
@@ -175,7 +175,7 @@ class EvidenceDraftTests(unittest.TestCase):
         )
         draft = EvidenceDraft.from_source_candidate(candidate)
         self.assertIsNone(draft.evidence_id)
-        self.assertEqual(draft.document_sha256, SHA_A)
+        self.assertEqual(draft.document_identity, SHA_A)
         self.assertEqual(draft.page_number, 7)
         self.assertEqual(draft.source_snippet, "Trecho da busca")
         self.assertEqual(draft.title, "Documento encontrado")
@@ -213,7 +213,7 @@ class EvidenceControllerTests(unittest.TestCase):
         controller, workspace, service, messages = self.make_controller()
         controller.load()
         controller.start_create()
-        draft = EvidenceDraft(document_sha256=SHA_A, title="Nova", category="Ensino")
+        draft = EvidenceDraft(document_identity=SHA_A, title="Nova", category="Ensino")
         controller.update_draft(draft)
         self.assertTrue(controller.dirty)
         self.assertTrue(controller.save())
@@ -237,7 +237,7 @@ class EvidenceControllerTests(unittest.TestCase):
             controller, _, service, _ = self.make_controller(duplicate=allowed)
             service.duplicates = (duplicate_item,)
             controller.start_create()
-            controller.update_draft(EvidenceDraft(document_sha256=SHA_A, title="Nova"))
+            controller.update_draft(EvidenceDraft(document_identity=SHA_A, title="Nova"))
             self.assertEqual(controller.save(), allowed)
 
     def test_edit_save_preserves_selection_and_cancel_restores_baseline(self):
@@ -333,7 +333,7 @@ class EvidenceControllerTests(unittest.TestCase):
                 )
                 controller.start_create()
                 controller.update_draft(
-                    EvidenceDraft(document_sha256=SHA_A, title="Anterior")
+                    EvidenceDraft(document_identity=SHA_A, title="Anterior")
                 )
                 self.assertEqual(
                     controller.start_create_from_source(candidate), accepted

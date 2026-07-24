@@ -37,34 +37,46 @@ class EvidencePersistenceArchitectureTests(unittest.TestCase):
                 self.assertNotIn("document_sha256", fields)
 
         instant = datetime(2026, 1, 1).isoformat()
-        opaque = "opaque-document-id"
-        evidence = Evidence.create(
-            document_identity=opaque,
-            title="Título",
-            timestamp=instant,
-        )
-        create = CreateEvidenceRequest(opaque, "Título")
-        update = UpdateEvidenceRequest(str(uuid4()), opaque, "Título")
-        draft = EvidenceDraft(document_identity=opaque, title="Título")
-        candidate = EvidenceSourceCandidate(opaque, 1)
-        self.assertEqual(evidence.document_identity, opaque)
-        self.assertEqual(create.document_identity, opaque)
-        self.assertEqual(update.document_identity, opaque)
-        self.assertEqual(draft.document_identity, opaque)
-        self.assertEqual(candidate.document_identity, opaque)
+        for opaque in (
+            "documento-interno-123",
+            "urn:procdoc:document:abc",
+        ):
+            with self.subTest(identity=opaque):
+                evidence = Evidence.create(
+                    document_identity=opaque,
+                    title="Título",
+                    timestamp=instant,
+                )
+                create = CreateEvidenceRequest(opaque, "Título")
+                update = UpdateEvidenceRequest(str(uuid4()), opaque, "Título")
+                draft = EvidenceDraft(document_identity=opaque, title="Título")
+                candidate = EvidenceSourceCandidate(opaque, 1)
+                self.assertEqual(evidence.document_identity, opaque)
+                self.assertEqual(create.document_identity, opaque)
+                self.assertEqual(update.document_identity, opaque)
+                self.assertEqual(draft.document_identity, opaque)
+                self.assertEqual(candidate.document_identity, opaque)
 
-    def test_legacy_sha_keyword_and_property_remain_compatible(self):
-        legacy = "a" * 64
-        evidence = Evidence.create(
-            document_sha256=legacy,
-            title="Título",
-            timestamp="2026-01-01T00:00:00",
+    def test_upper_layers_do_not_expose_or_validate_sha_identity(self):
+        root = Path(__file__).parents[1]
+        paths = (
+            "models/evidence.py",
+            "models/evidence_draft.py",
+            "models/evidence_requests.py",
+            "models/evidence_source_candidate.py",
+            "services/evidence_service.py",
+            "services/evidence_repository_port.py",
+            "services/document_source_resolver.py",
+            "services/search/search_result.py",
         )
-        request = CreateEvidenceRequest(
-            document_sha256=legacy, title="Título"
-        )
-        self.assertEqual(evidence.document_sha256, legacy)
-        self.assertEqual(request.document_sha256, legacy)
+        for relative_path in paths:
+            with self.subTest(path=relative_path):
+                source = (root / relative_path).read_text(
+                    encoding="utf-8"
+                ).lower()
+                self.assertNotIn("document_sha256", source)
+                self.assertNotIn("sha256", source)
+                self.assertNotIn("_sha256", source)
 
     def test_port_exposes_only_existing_canonical_operations(self):
         expected = {
@@ -133,6 +145,15 @@ class EvidencePersistenceArchitectureTests(unittest.TestCase):
         self.assertNotIn(" from documents", source)
         self.assertNotIn(" join documents", source)
         self.assertNotIn("is_document_available", source)
+
+    def test_sqlite_adapter_maps_opaque_api_to_legacy_physical_column(self):
+        source = (
+            Path(__file__).parents[1]
+            / "services"
+            / "sqlite_evidence_repository.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn('"document_sha256"', source)
+        self.assertIn('"document_identity": row["document_sha256"]', source)
 
     def test_public_port_and_legacy_concrete_imports_are_preserved(self):
         self.assertIsNot(EvidenceRepository, SQLiteEvidenceRepository)

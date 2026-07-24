@@ -19,6 +19,7 @@ from .evidence_repository_errors import (
 class SQLiteEvidenceRepository:
     """CRUD SQLite responsável somente pela persistência de evidências."""
 
+    # Nome físico legado; a API do adapter expõe somente document_identity.
     COLUMNS = (
         "id", "document_sha256", "page_number", "title", "source_snippet",
         "user_notes", "category", "start_date", "end_date", "created_at",
@@ -72,13 +73,13 @@ class SQLiteEvidenceRepository:
             return [self._from_row(row) for row in rows]
 
     def list_by_document(self, document_identity: str) -> list[Evidence]:
-        sha256 = self._sha256(document_identity)
+        stored_identity = self._storage_identity(document_identity)
         with ProjectDatabase(self.database_path) as database:
             rows = database.connection.execute(
                 "SELECT * FROM evidences WHERE document_sha256 = ? "
                 "ORDER BY page_number IS NULL, page_number, start_date IS NULL, "
                 "start_date, title COLLATE NOCASE, id",
-                (sha256,),
+                (stored_identity,),
             ).fetchall()
             return [self._from_row(row) for row in rows]
 
@@ -94,7 +95,7 @@ class SQLiteEvidenceRepository:
                         raise EvidenceNotFoundError("Evidência não encontrada.")
                     persisted = Evidence(
                         **{
-                            **{field: getattr(evidence, field) for field in self.COLUMNS},
+                            **self._domain_values(evidence),
                             "created_at": existing["created_at"],
                             "updated_at": evidence.updated_at,
                         }
@@ -133,7 +134,7 @@ class SQLiteEvidenceRepository:
         return evidence
 
     @staticmethod
-    def _sha256(value: object) -> str:
+    def _storage_identity(value: object) -> str:
         normalized = value.strip().lower() if isinstance(value, str) else ""
         if len(normalized) != 64 or any(
             character not in "0123456789abcdef" for character in normalized
@@ -148,7 +149,7 @@ class SQLiteEvidenceRepository:
     @classmethod
     def _values(cls, evidence: Evidence) -> tuple:
         return tuple(
-            cls._sha256(evidence.document_identity)
+            cls._storage_identity(evidence.document_identity)
             if field == "document_sha256"
             else getattr(evidence, field)
             for field in cls.COLUMNS
@@ -156,4 +157,27 @@ class SQLiteEvidenceRepository:
 
     @classmethod
     def _from_row(cls, row) -> Evidence:
-        return Evidence(**{field: row[field] for field in cls.COLUMNS})
+        return Evidence(**{
+            "document_identity": row["document_sha256"],
+            **{
+                field: row[field]
+                for field in cls.COLUMNS
+                if field != "document_sha256"
+            },
+        })
+
+    @staticmethod
+    def _domain_values(evidence: Evidence) -> dict:
+        return {
+            "id": evidence.id,
+            "document_identity": evidence.document_identity,
+            "page_number": evidence.page_number,
+            "title": evidence.title,
+            "source_snippet": evidence.source_snippet,
+            "user_notes": evidence.user_notes,
+            "category": evidence.category,
+            "start_date": evidence.start_date,
+            "end_date": evidence.end_date,
+            "created_at": evidence.created_at,
+            "updated_at": evidence.updated_at,
+        }

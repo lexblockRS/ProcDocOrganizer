@@ -70,7 +70,7 @@ class EvidenceService:
             )
             return self._repository.add(evidence)
         except Exception as exc:
-            self._raise_mapped(exc, creation=True)
+            self._raise_mapped(exc)
 
     def get(self, evidence_id: str) -> Evidence | None:
         return self._execute(lambda: self._repository.get_by_id(evidence_id))
@@ -156,10 +156,6 @@ class EvidenceService:
             lambda: self._source_resolver.is_document_available(identity)
         ))
 
-    def is_document_sha_available(self, document_sha256: str) -> bool:
-        """Alias legado; use is_document_available."""
-        return self.is_document_available(document_sha256)
-
     def _require_document_available(self, document_identity: str) -> None:
         if not self._source_resolver.is_document_available(document_identity):
             raise RepositoryDocumentNotFoundError(
@@ -214,7 +210,7 @@ class EvidenceService:
             self._raise_mapped(exc)
 
     @staticmethod
-    def _raise_mapped(exc: Exception, creation: bool = False):
+    def _raise_mapped(exc: Exception):
         if isinstance(exc, EvidenceServiceError):
             raise exc
         if isinstance(exc, RepositoryNotFoundError):
