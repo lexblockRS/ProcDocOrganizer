@@ -411,22 +411,3 @@ class DocumentIndexer:
         connection.execute("DELETE FROM document_pages_fts")
         connection.execute("DELETE FROM documents")
         return removed
-
-    @staticmethod
-    def _insert_pages(connection, document_id: int, pages: list[dict]) -> int:
-        searchable = 0
-        for page in pages:
-            text = page["text"].replace("\x00", "")
-            connection.execute(
-                "INSERT INTO document_pages(document_id, page_number, text) "
-                "VALUES (?, ?, ?)",
-                (document_id, page["page"], text),
-            )
-            if text.strip():
-                connection.execute(
-                    "INSERT INTO document_pages_fts(text, document_id, page_number) "
-                    "VALUES (?, ?, ?)",
-                    (text, document_id, page["page"]),
-                )
-                searchable += 1
-        return searchable

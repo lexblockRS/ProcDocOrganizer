@@ -70,7 +70,7 @@ class EvidenceService:
             )
             return self._repository.add(evidence)
         except Exception as exc:
-            self._raise_mapped(exc, creation=True)
+            self._raise_mapped(exc)
 
     def get(self, evidence_id: str) -> Evidence | None:
         return self._execute(lambda: self._repository.get_by_id(evidence_id))
@@ -210,7 +210,7 @@ class EvidenceService:
             self._raise_mapped(exc)
 
     @staticmethod
-    def _raise_mapped(exc: Exception, creation: bool = False):
+    def _raise_mapped(exc: Exception):
         if isinstance(exc, EvidenceServiceError):
             raise exc
         if isinstance(exc, RepositoryNotFoundError):
