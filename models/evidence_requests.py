@@ -60,17 +60,12 @@ class CreateEvidenceRequest:
         category: str | None = None,
         start_date: str | None = None,
         end_date: str | None = None,
-        **legacy,
     ) -> None:
         _initialize_request(
             self, document_identity, title, page_number, source_snippet,
-            user_notes, category, start_date, end_date, legacy,
+            user_notes, category, start_date, end_date,
         )
         _normalize_request(self)
-
-    @property
-    def document_sha256(self) -> str:
-        return self.document_identity
 
 
 @dataclass(frozen=True, init=False)
@@ -96,18 +91,13 @@ class UpdateEvidenceRequest:
         category: str | None = None,
         start_date: str | None = None,
         end_date: str | None = None,
-        **legacy,
     ) -> None:
         object.__setattr__(self, "evidence_id", evidence_id)
         _initialize_request(
             self, document_identity, title, page_number, source_snippet,
-            user_notes, category, start_date, end_date, legacy,
+            user_notes, category, start_date, end_date,
         )
         _normalize_request(self, validate_id=True)
-
-    @property
-    def document_sha256(self) -> str:
-        return self.document_identity
 
 
 def _initialize_request(
@@ -120,15 +110,9 @@ def _initialize_request(
     category,
     start_date,
     end_date,
-    legacy,
 ) -> None:
-    legacy_identity = legacy.pop("document_sha256", None)
-    if legacy:
-        raise TypeError(f"Argumentos desconhecidos: {', '.join(legacy)}")
     values = {
-        "document_identity": Evidence._compatible_identity(
-            document_identity, legacy_identity
-        ),
+        "document_identity": Evidence._identity(document_identity),
         "title": title,
         "page_number": page_number,
         "source_snippet": source_snippet,

@@ -112,7 +112,7 @@ class SearchServiceTests(unittest.TestCase):
 
     def test_simple_match_returns_native_document(self):
         results = self.service.search(SearchFilters(terms=["afastamento"]))
-        self.assertEqual({result.document_sha256 for result in results}, {"a" * 64, "c" * 64})
+        self.assertEqual({result.document_identity for result in results}, {"a" * 64, "c" * 64})
         self.assertEqual(results[0].page_number, 1)
 
     def test_phrase_requires_adjacent_terms(self):
@@ -122,11 +122,11 @@ class SearchServiceTests(unittest.TestCase):
 
     def test_all_terms_uses_and(self):
         results = self.service.search_all_terms(["afastamento", "administração"])
-        self.assertEqual([result.document_sha256 for result in results], ["c" * 64])
+        self.assertEqual([result.document_identity for result in results], ["c" * 64])
 
     def test_any_terms_uses_or(self):
         results = self.service.search_any_terms(["jabuticaba", "Professor"])
-        self.assertEqual({result.document_sha256 for result in results}, {"a" * 64, "b" * 64})
+        self.assertEqual({result.document_identity for result in results}, {"a" * 64, "b" * 64})
 
     def test_ocr_text_is_searched_like_native_text(self):
         result = self.service.search(SearchFilters(terms=["jabuticaba"]))[0]
@@ -155,8 +155,8 @@ class SearchServiceTests(unittest.TestCase):
         upper = self.service.search(SearchFilters(terms=["ADMINISTRAÇÃO"]))
         self.assertEqual(len(lower), 2)
         self.assertEqual(
-            [item.document_sha256 for item in lower],
-            [item.document_sha256 for item in upper],
+            [item.document_identity for item in lower],
+            [item.document_identity for item in upper],
         )
 
     def test_metadata_and_date_filters(self):
@@ -164,14 +164,14 @@ class SearchServiceTests(unittest.TestCase):
             terms=["afastamento"], document_type="portaria",
             start_date="2025-01-01",
         ))
-        self.assertEqual([result.document_sha256 for result in results], ["a" * 64])
+        self.assertEqual([result.document_identity for result in results], ["a" * 64])
 
     def test_limit_and_offset(self):
         first = self.service.search(SearchFilters(terms=["afastamento"], limit=1))
         second = self.service.search(SearchFilters(terms=["afastamento"], limit=1, offset=1))
         self.assertEqual(len(first), 1)
         self.assertEqual(len(second), 1)
-        self.assertNotEqual(first[0].document_sha256, second[0].document_sha256)
+        self.assertNotEqual(first[0].document_identity, second[0].document_identity)
 
     def test_invalid_parameters_are_rejected(self):
         invalid = (

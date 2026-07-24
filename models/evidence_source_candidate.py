@@ -29,18 +29,9 @@ class EvidenceSourceCandidate:
         document_type: str | None = None,
         search_term: str | None = None,
         suggested_title: str | None = None,
-        **legacy,
     ) -> None:
-        legacy_identity = legacy.pop("document_sha256", None)
-        if legacy:
-            raise TypeError(f"Argumentos desconhecidos: {', '.join(legacy)}")
-        identity = (
-            document_identity
-            if document_identity is not None
-            else legacy_identity
-        )
         for field, value in (
-            ("document_identity", identity),
+            ("document_identity", document_identity),
             ("page_number", page_number),
             ("source_snippet", source_snippet),
             ("document_name", document_name),
@@ -86,7 +77,7 @@ class EvidenceSourceCandidate:
         )
         terms = tuple(getattr(result, "matched_terms", ()) or ())
         return cls(
-            document_identity=getattr(result, "document_sha256", ""),
+            document_identity=getattr(result, "document_identity", ""),
             page_number=getattr(result, "page_number", None),
             source_snippet=getattr(result, "snippet", ""),
             document_name=getattr(result, "document_title", None),
@@ -112,10 +103,6 @@ class EvidenceSourceCandidate:
             document_name=getattr(hit, "document_name", None),
             suggested_title=title,
         )
-
-    @property
-    def document_sha256(self) -> str:
-        return self.document_identity
 
     @classmethod
     def suggest_title(cls, document_title, file_path, document_type, snippet) -> str:

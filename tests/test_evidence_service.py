@@ -68,7 +68,7 @@ class EvidenceServiceTests(unittest.TestCase):
 
     def request(self, **changes):
         values = {
-            "document_sha256": SHA_A,
+            "document_identity": SHA_A,
             "page_number": 3,
             "title": "Participação em comissão",
             "source_snippet": "designar o servidor",
@@ -83,7 +83,7 @@ class EvidenceServiceTests(unittest.TestCase):
     def update_request(self, evidence, **changes):
         values = {
             "evidence_id": evidence.id,
-            "document_sha256": evidence.document_sha256,
+            "document_identity": evidence.document_identity,
             "page_number": evidence.page_number,
             "title": evidence.title,
             "source_snippet": evidence.source_snippet,
@@ -123,6 +123,39 @@ class EvidenceServiceTests(unittest.TestCase):
         with self.assertRaises(FrozenInstanceError):
             request.title = "Outro"
 
+    def test_service_accepts_opaque_identity_without_sha_validation(self):
+        repository = Mock()
+        repository.add.side_effect = lambda evidence: evidence
+        resolver = Mock()
+        resolver.is_document_available.return_value = True
+        service = EvidenceService(
+            repository,
+            resolver,
+            id_factory=lambda: ID_A,
+            now_factory=lambda: CREATED,
+        )
+
+        evidence = service.create(CreateEvidenceRequest(
+            document_identity="urn:procdoc:document:abc",
+            title="Título",
+        ))
+
+        self.assertEqual(
+            evidence.document_identity,
+            "urn:procdoc:document:abc",
+        )
+        resolver.is_document_available.assert_called_once_with(
+            "urn:procdoc:document:abc"
+        )
+
+    def test_sqlite_resolver_treats_non_sha_identity_as_unavailable(self):
+        self.assertFalse(
+            self.resolver.is_document_available("documento-interno-123")
+        )
+        self.assertFalse(
+            self.service.is_document_available("urn:procdoc:document:abc")
+        )
+
     def test_invalid_request_fields_are_rejected_before_persistence(self):
         invalid = (
             lambda: self.request(document_identity=""),
@@ -137,7 +170,7 @@ class EvidenceServiceTests(unittest.TestCase):
 
     def test_create_for_missing_document_has_service_error(self):
         with self.assertRaises(EvidenceDocumentUnavailableError) as caught:
-            self.service.create(self.request(document_sha256="c" * 64))
+            self.service.create(self.request(document_identity="c" * 64))
         self.assertIsNotNone(caught.exception.__cause__)
 
     def test_duplicate_factory_id_is_mapped(self):
@@ -184,8 +217,8 @@ class EvidenceServiceTests(unittest.TestCase):
         service = EvidenceService(
             self.repository, self.resolver, now_factory=lambda: UPDATED
         )
-        updated = service.update(self.update_request(evidence, document_sha256=SHA_B))
-        self.assertEqual(updated.document_sha256, SHA_B)
+        updated = service.update(self.update_request(evidence, document_identity=SHA_B))
+        self.assertEqual(updated.document_identity, SHA_B)
 
     def test_update_to_missing_document_is_mapped(self):
         evidence = self.service.create(self.request())
@@ -193,11 +226,11 @@ class EvidenceServiceTests(unittest.TestCase):
             self.repository, self.resolver, now_factory=lambda: UPDATED
         )
         with self.assertRaises(EvidenceDocumentUnavailableError):
-            service.update(self.update_request(evidence, document_sha256="c" * 64))
+            service.update(self.update_request(evidence, document_identity="c" * 64))
 
     def test_update_missing_evidence_is_rejected(self):
         request = UpdateEvidenceRequest(
-            evidence_id=str(uuid4()), document_sha256=SHA_A, title="Ausente"
+            evidence_id=str(uuid4()), document_identity=SHA_A, title="Ausente"
         )
         with self.assertRaises(EvidenceNotFoundError):
             self.service.update(request)

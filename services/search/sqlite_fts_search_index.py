@@ -136,7 +136,7 @@ class SqliteFtsSearchIndex:
         )
         raw_score = row["raw_score"]
         return SearchResult(
-            document_sha256=str(row["document_identity"]),
+            document_identity=str(row["document_identity"]),
             document_title=row["document_name"],
             page_number=int(row["page_number"]),
             snippet=self._snippet(row["snippet"]),

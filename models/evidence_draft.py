@@ -30,19 +30,10 @@ class EvidenceDraft:
         category: str = "",
         start_date: str = "",
         end_date: str = "",
-        **legacy,
     ) -> None:
-        legacy_identity = legacy.pop("document_sha256", None)
-        if legacy:
-            raise TypeError(f"Argumentos desconhecidos: {', '.join(legacy)}")
-        identity = (
-            document_identity
-            if document_identity is not None
-            else legacy_identity or ""
-        )
         for field, value in (
             ("evidence_id", evidence_id),
-            ("document_identity", identity),
+            ("document_identity", document_identity or ""),
             ("page_number", page_number),
             ("title", title),
             ("source_snippet", source_snippet),
@@ -52,10 +43,6 @@ class EvidenceDraft:
             ("end_date", end_date),
         ):
             object.__setattr__(self, field, value)
-
-    @property
-    def document_sha256(self) -> str:
-        return self.document_identity
 
     @classmethod
     def empty(cls) -> "EvidenceDraft":

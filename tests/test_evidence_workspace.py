@@ -54,7 +54,7 @@ class EvidenceWidgetTests(unittest.TestCase):
         emitted = []
         editor.draft_changed.connect(emitted.append)
         draft = EvidenceDraft(
-            evidence_id=str(uuid4()), document_sha256="a" * 64,
+            evidence_id=str(uuid4()), document_identity="a" * 64,
             page_number=4, title="Título", source_snippet="Trecho",
             user_notes="Notas", category="Ensino", start_date="2025-01-01",
         )

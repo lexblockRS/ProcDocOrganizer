@@ -283,7 +283,7 @@ class SearchWorkspaceTests(unittest.TestCase):
             self.controller.request_create_evidence_from_selected_result()
         )
         candidate = candidates[0]
-        self.assertEqual(candidate.document_sha256, self.hit.document_identity)
+        self.assertEqual(candidate.document_identity, self.hit.document_identity)
         self.assertEqual(candidate.page_number, self.hit.page_number)
         self.assertEqual(candidate.source_snippet, self.hit.snippet)
         self.assertEqual(candidate.document_name, self.hit.document_name)

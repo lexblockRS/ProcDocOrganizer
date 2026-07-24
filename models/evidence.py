@@ -38,17 +38,10 @@ class Evidence:
         end_date: str | None = None,
         created_at: str = "",
         updated_at: str = "",
-        **legacy,
     ) -> None:
-        legacy_identity = legacy.pop("document_sha256", None)
-        if legacy:
-            raise TypeError(f"Argumentos desconhecidos: {', '.join(legacy)}")
-        identity = self._compatible_identity(
-            document_identity, legacy_identity
-        )
         for field, value in (
             ("id", id),
-            ("document_identity", identity),
+            ("document_identity", document_identity),
             ("page_number", page_number),
             ("title", title),
             ("source_snippet", source_snippet),
@@ -111,17 +104,11 @@ class Evidence:
         end_date: str | None = None,
         evidence_id: str | None = None,
         timestamp: str | None = None,
-        **legacy,
     ) -> "Evidence":
-        legacy_identity = legacy.pop("document_sha256", None)
-        if legacy:
-            raise TypeError(f"Argumentos desconhecidos: {', '.join(legacy)}")
         instant = timestamp or cls.now()
         return cls(
             id=evidence_id or str(uuid4()),
-            document_identity=cls._compatible_identity(
-                document_identity, legacy_identity
-            ),
+            document_identity=document_identity,
             page_number=page_number, title=title, source_snippet=source_snippet,
             user_notes=user_notes, category=category, start_date=start_date,
             end_date=end_date, created_at=instant, updated_at=instant,
@@ -133,16 +120,7 @@ class Evidence:
 
     def with_changes(self, **changes) -> "Evidence":
         """Cria uma nova versão; o repositório controla os timestamps persistidos."""
-        if "document_sha256" in changes:
-            if "document_identity" in changes:
-                raise ValueError("Informe apenas uma identidade documental.")
-            changes["document_identity"] = changes.pop("document_sha256")
         return replace(self, **changes)
-
-    @property
-    def document_sha256(self) -> str:
-        """Alias legado; use document_identity em novos consumidores."""
-        return self.document_identity
 
     @staticmethod
     def _uuid(value: object) -> str:
@@ -158,19 +136,6 @@ class Evidence:
         if not isinstance(value, str) or not value.strip():
             raise ValueError("document_identity deve ser um texto não vazio.")
         return value.strip()
-
-    @classmethod
-    def _compatible_identity(
-        cls, document_identity: object, legacy_identity: object
-    ) -> str:
-        if document_identity is not None and legacy_identity is not None:
-            if cls._identity(document_identity) != cls._identity(legacy_identity):
-                raise ValueError("Identidades documentais divergentes.")
-        return cls._identity(
-            document_identity
-            if document_identity is not None
-            else legacy_identity
-        )
 
     @staticmethod
     def _required_text(value: object, field: str) -> str:

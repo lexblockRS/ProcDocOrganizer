@@ -156,10 +156,6 @@ class EvidenceService:
             lambda: self._source_resolver.is_document_available(identity)
         ))
 
-    def is_document_sha_available(self, document_sha256: str) -> bool:
-        """Alias legado; use is_document_available."""
-        return self.is_document_available(document_sha256)
-
     def _require_document_available(self, document_identity: str) -> None:
         if not self._source_resolver.is_document_available(document_identity):
             raise RepositoryDocumentNotFoundError(
