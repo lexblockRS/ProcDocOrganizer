@@ -1,5 +1,9 @@
 """Repositórios disponíveis para a camada Application do ProcDoc RSC."""
 
 from .in_memory_activity_repository import InMemoryActivityRepository
+from .in_memory_project_repository import InMemoryProjectRepository
 
-__all__ = ["InMemoryActivityRepository"]
+__all__ = [
+    "InMemoryActivityRepository",
+    "InMemoryProjectRepository",
+]
