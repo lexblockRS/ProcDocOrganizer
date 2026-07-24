@@ -138,11 +138,11 @@ class EvidencePersistenceArchitectureTests(unittest.TestCase):
         self.assertIsNot(EvidenceRepository, SQLiteEvidenceRepository)
         self.assertIs(LegacyEvidenceRepository, SQLiteEvidenceRepository)
 
-    def test_composition_root_uses_sqlite_adapter(self):
+    def test_session_factory_uses_sqlite_adapter(self):
         source = (
             Path(__file__).parents[1]
             / "core"
-            / "project_controller.py"
+            / "project_session_factory.py"
         ).read_text(encoding="utf-8")
         self.assertIn("SQLiteEvidenceRepository(project)", source)
         self.assertIn("SearchDocumentSourceResolver(project)", source)

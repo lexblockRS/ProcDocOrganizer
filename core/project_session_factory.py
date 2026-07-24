@@ -1,0 +1,40 @@
+"""Composição das dependências associadas a um projeto."""
+
+from models import Project
+from services import (
+    DocumentRepository,
+    DocumentService,
+    EvidenceService,
+    SearchDocumentSourceResolver,
+    SQLiteEvidenceRepository,
+)
+from services.processing import ProcessingRepository
+from services.search import SearchService, SqliteFtsSearchIndex
+
+from .project_session import ProjectSession
+
+
+class ProjectSessionFactory:
+    """Cria uma sessão completa antes de sua ativação pela aplicação."""
+
+    def create(self, project: Project) -> ProjectSession:
+        document_repository = DocumentRepository(project)
+        document_repository.load()
+        document_service = DocumentService(
+            document_repository,
+            ProcessingRepository(project),
+        )
+        search_service = SearchService(
+            SqliteFtsSearchIndex(project.project_path / project.database)
+        )
+        evidence_service = EvidenceService(
+            SQLiteEvidenceRepository(project),
+            SearchDocumentSourceResolver(project),
+        )
+        return ProjectSession(
+            project=project,
+            document_repository=document_repository,
+            document_service=document_service,
+            search_service=search_service,
+            evidence_service=evidence_service,
+        )

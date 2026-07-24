@@ -233,10 +233,10 @@ class SearchServiceArchitectureTests(unittest.TestCase):
         ):
             self.assertNotIn(forbidden, source)
 
-    def test_project_controller_composes_core_service_and_index(self):
+    def test_session_factory_composes_core_service_and_index(self):
         root = Path(__file__).parents[1]
         source = (
-            root / "core" / "project_controller.py"
+            root / "core" / "project_session_factory.py"
         ).read_text(encoding="utf-8")
         self.assertIn("SearchService(", source)
         self.assertIn("SqliteFtsSearchIndex(", source)

@@ -14,17 +14,10 @@ from PySide6.QtWidgets import (
 from ui.dialogs import NewProjectDialog
 from controllers import DocumentsController, EvidenceController, SearchController
 
-from services import (
-    DocumentImporter,
-    DocumentRepository,
-    EvidenceService,
-    SearchDocumentSourceResolver,
-    SQLiteEvidenceRepository,
-    DocumentService,
-)
-from services.search import SearchService, SqliteFtsSearchIndex
+from services import DocumentImporter
 from services.processing import DocumentProcessor
-from services.processing import ProcessingRepository
+
+from .project_session_factory import ProjectSessionFactory
 
 
 class ProjectController:
@@ -40,14 +33,15 @@ class ProjectController:
         manager,
         state,
         batch_limit: int = DEFAULT_BATCH_LIMIT,
+        session_factory=None,
     ):
         self.window = window
         self.manager = manager
         self.state = state
         self.batch_limit = max(1, batch_limit)
+        self.session_factory = session_factory or ProjectSessionFactory()
 
-        # Repositório do projeto atualmente aberto.
-        self.document_repository = None
+        self.session = None
         self.selected_document = None
         self.document_processor = DocumentProcessor()
         self.search_controller = SearchController(
@@ -128,33 +122,20 @@ class ProjectController:
         Inicializa um projeto na aplicação.
         """
 
-        self.document_repository = DocumentRepository(project)
-        self.document_repository.load()
+        session = self.session_factory.create(project)
 
         self.state.open_project(project)
+        self.session = session
         self.selected_document = None
-        self.search_controller.set_search_service(
-            SearchService(
-                SqliteFtsSearchIndex(project.project_path / project.database)
-            )
-        )
-        self.evidence_controller.set_service(
-            EvidenceService(
-                SQLiteEvidenceRepository(project),
-                SearchDocumentSourceResolver(project),
-            )
-        )
+        self.search_controller.set_search_service(session.search_service)
+        self.evidence_controller.set_service(session.evidence_service)
 
         self.window.set_project(
             project,
-            self.document_repository.list_documents(),
+            session.document_repository.list_documents(),
         )
-        self.documents_controller.set_service(DocumentService(
-            self.document_repository, ProcessingRepository(project)
-        ))
+        self.documents_controller.set_service(session.document_service)
         self.documents_controller.load()
-
-    # ------------------------------------------------------------------
 
     def new_project(self):
         """
@@ -175,6 +156,7 @@ class ProjectController:
                 dialog.get_project_name(),
                 dialog.get_project_folder(),
             )
+            self._load_project(project)
 
         except FileExistsError as exc:
 
@@ -195,8 +177,6 @@ class ProjectController:
             )
 
             return
-
-        self._load_project(project)
 
     # ------------------------------------------------------------------
 
@@ -221,6 +201,7 @@ class ProjectController:
             project = self.manager.open_project(
                 Path(folder)
             )
+            self._load_project(project)
 
         except FileNotFoundError as exc:
 
@@ -241,8 +222,6 @@ class ProjectController:
             )
 
             return
-
-        self._load_project(project)
 
     # ------------------------------------------------------------------
 
@@ -280,10 +259,10 @@ class ProjectController:
             documents = importer.import_files(files)
 
             for document in documents:
-                self.document_repository.add(document)
+                self.session.document_repository.add(document)
                 added_documents.append(document)
 
-            self.document_repository.save()
+            self.session.document_repository.save()
 
         except Exception as exc:
 
@@ -291,7 +270,7 @@ class ProjectController:
 
             try:
                 for document in added_documents:
-                    self.document_repository.remove(document)
+                    self.session.document_repository.remove(document)
 
                 importer.remove_imported_files(documents)
 
@@ -312,7 +291,7 @@ class ProjectController:
 
         self.window.set_project(
             self.state.current_project,
-            self.document_repository.list_documents(),
+            self.session.document_repository.list_documents(),
         )
 
         QMessageBox.information(
@@ -437,7 +416,7 @@ class ProjectController:
         self.evidence_controller.set_service(None)
         self.documents_controller.set_service(None)
         self.search_controller.set_search_service(None)
-        self.document_repository = None
+        self.session = None
         self.selected_document = None
         self.state.close_project()
         self.window.clear_project()
@@ -587,7 +566,7 @@ class ProjectController:
         ocr_required = 0
         changed = False
 
-        for document in self.document_repository.list_documents():
+        for document in self.session.document_repository.list_documents():
             try:
                 result = self.document_processor.get_valid_result(
                     self.state.current_project,
@@ -608,7 +587,7 @@ class ProjectController:
                 skipped += 1
 
         if changed:
-            self.document_repository.save()
+            self.session.document_repository.save()
 
         return pending_documents, skipped, ocr_required
 
@@ -712,12 +691,12 @@ class ProjectController:
         """
 
         document.processing_status = "pending"
-        self.document_repository.update(document)
-        self.document_repository.save()
+        self.session.document_repository.update(document)
+        self.session.document_repository.save()
 
         document.processing_status = "processing"
-        self.document_repository.update(document)
-        self.document_repository.save()
+        self.session.document_repository.update(document)
+        self.session.document_repository.save()
 
         result = self.document_processor.process(
             self.state.current_project,
@@ -725,8 +704,8 @@ class ProjectController:
         )
 
         self._apply_processing_result(document, result)
-        self.document_repository.update(document)
-        self.document_repository.save()
+        self.session.document_repository.update(document)
+        self.session.document_repository.save()
 
     # ------------------------------------------------------------------
 
@@ -762,8 +741,8 @@ class ProjectController:
         error_message = str(exc)
 
         try:
-            self.document_repository.update(document)
-            self.document_repository.save()
+            self.session.document_repository.update(document)
+            self.session.document_repository.save()
         except Exception as save_exc:
             error_message = (
                 f"{error_message}\n\n"
@@ -782,9 +761,9 @@ class ProjectController:
 
         for document in documents:
             document.processing_status = "cancelled"
-            self.document_repository.update(document)
+            self.session.document_repository.update(document)
 
-        self.document_repository.save()
+        self.session.document_repository.save()
 
     # ------------------------------------------------------------------
 
@@ -795,7 +774,7 @@ class ProjectController:
 
         self.window.set_project(
             self.state.current_project,
-            self.document_repository.list_documents(),
+            self.session.document_repository.list_documents(),
         )
         if self.selected_document is None:
             return
@@ -820,7 +799,7 @@ class ProjectController:
         document = next(
             (
                 item
-                for item in self.document_repository
+                for item in self.session.document_repository
                 if item.relative_path == relative_path
             ),
             None,
