@@ -46,6 +46,9 @@ class ApplicationRegistry:
             raise DuplicateApplicationError(
                 f"Application já registrada: {application_id}."
             )
+        self._required_display_name(
+            getattr(application, "display_name", None)
+        )
         if not callable(getattr(application, "can_open", None)):
             raise TypeError("Application deve implementar can_open(project).")
         if not callable(getattr(application, "contributions", None)):
@@ -89,5 +92,13 @@ class ApplicationRegistry:
         if not isinstance(value, str) or not value.strip():
             raise ValueError(
                 "application_id deve ser um texto não vazio."
+            )
+        return value.strip()
+
+    @staticmethod
+    def _required_display_name(value: object) -> str:
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(
+                "display_name deve ser um texto não vazio."
             )
         return value.strip()

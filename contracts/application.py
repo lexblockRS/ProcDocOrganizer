@@ -13,6 +13,10 @@ class Application(Protocol):
     def application_id(self) -> str:
         """Identidade persistível e estável da Application."""
 
+    @property
+    def display_name(self) -> str:
+        """Nome curto apresentado ao usuário."""
+
     def can_open(self, project: Project) -> bool:
         """Informa se a Application é compatível com o projeto."""
 

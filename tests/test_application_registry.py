@@ -17,6 +17,7 @@ from models import Project
 class FakeApplication:
     def __init__(self, application_id="example", compatible=True):
         self.application_id = application_id
+        self.display_name = "Example"
         self.compatible = compatible
         self.checked_projects = []
         self.contribution_calls = 0

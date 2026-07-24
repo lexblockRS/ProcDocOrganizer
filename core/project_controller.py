@@ -34,12 +34,14 @@ class ProjectController:
         state,
         batch_limit: int = DEFAULT_BATCH_LIMIT,
         session_factory=None,
+        application_registry=None,
     ):
         self.window = window
         self.manager = manager
         self.state = state
         self.batch_limit = max(1, batch_limit)
         self.session_factory = session_factory or ProjectSessionFactory()
+        self.application_registry = application_registry
 
         self.session = None
         self.selected_document = None
@@ -145,7 +147,15 @@ class ProjectController:
         if not self.evidence_controller.can_leave():
             return
 
-        dialog = NewProjectDialog(self.window)
+        applications = (
+            self.application_registry.applications
+            if self.application_registry is not None
+            else ()
+        )
+        dialog = NewProjectDialog(
+            self.window,
+            applications=applications,
+        )
 
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
@@ -155,6 +165,7 @@ class ProjectController:
             project = self.manager.create_project(
                 dialog.get_project_name(),
                 dialog.get_project_folder(),
+                application_id=dialog.get_application_id(),
             )
             self._load_project(project)
 

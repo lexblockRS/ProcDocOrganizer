@@ -8,6 +8,7 @@ from models import Project
 
 class ExampleApplication:
     application_id = "example"
+    display_name = "Example"
 
     def can_open(self, project):
         return project.application == self.application_id

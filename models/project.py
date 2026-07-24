@@ -11,6 +11,7 @@ from pathlib import Path
 
 
 PROJECT_FORMAT_VERSION = 1
+LEGACY_APPLICATION_ID = "ProcDocOrganizer"
 
 
 @dataclass
@@ -24,7 +25,7 @@ class Project:
     created_at: str
     last_opened_at: str
 
-    application: str = "ProcDocOrganizer"
+    application: str = LEGACY_APPLICATION_ID
     format_version: int = PROJECT_FORMAT_VERSION
     database: str = "database.db"
 
@@ -41,7 +42,12 @@ class Project:
     # ------------------------------------------------------------------
 
     @classmethod
-    def create(cls, project_name: str, project_path: Path) -> "Project":
+    def create(
+        cls,
+        project_name: str,
+        project_path: Path,
+        application_id: str = LEGACY_APPLICATION_ID,
+    ) -> "Project":
         """
         Cria um novo projeto em memória.
         """
@@ -53,6 +59,7 @@ class Project:
             project_path=project_path,
             created_at=timestamp,
             last_opened_at=timestamp,
+            application=application_id,
         )
 
     # ------------------------------------------------------------------

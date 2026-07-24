@@ -6,7 +6,7 @@ from pathlib import Path
 import shutil
 
 from database import initialize_database
-from models.project import Project
+from models.project import LEGACY_APPLICATION_ID, Project
 
 
 class ProjectManager:
@@ -22,6 +22,7 @@ class ProjectManager:
         self,
         project_name: str,
         parent_folder: Path,
+        application_id: str = LEGACY_APPLICATION_ID,
     ) -> Project:
         """
         Cria um novo projeto.
@@ -41,6 +42,7 @@ class ProjectManager:
             project = Project.create(
                 project_name=project_name,
                 project_path=project_path,
+                application_id=application_id,
             )
 
             initialize_database(project_path / project.database)

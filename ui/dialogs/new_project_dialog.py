@@ -11,10 +11,12 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
+    QComboBox,
     QVBoxLayout,
     QWidget,
 )
 
+from models.project import LEGACY_APPLICATION_ID
 from ui.dialogs.base_dialog import BaseDialog
 
 
@@ -23,8 +25,9 @@ class NewProjectDialog(BaseDialog):
     Diálogo para criação de um novo projeto.
     """
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, applications=()):
         super().__init__(parent)
+        self._applications = tuple(applications)
 
         self.setWindowTitle("Novo Projeto")
         self.resize(520, 180)
@@ -54,6 +57,21 @@ class NewProjectDialog(BaseDialog):
         form.addRow(
             "Nome do Projeto:",
             self.project_name,
+        )
+
+        self.application_selector = QComboBox()
+        self.application_selector.addItem(
+            "Projeto legado / ProcDocOrganizer",
+            LEGACY_APPLICATION_ID,
+        )
+        for application in self._applications:
+            self.application_selector.addItem(
+                application.display_name,
+                application.application_id,
+            )
+        form.addRow(
+            "Tipo de Projeto:",
+            self.application_selector,
         )
 
         folder_widget = QWidget()
@@ -158,3 +176,8 @@ class NewProjectDialog(BaseDialog):
         return Path(
             self.project_folder.text().strip()
         )
+
+    def get_application_id(self) -> str:
+        """Retorna a identidade da Application selecionada."""
+
+        return self.application_selector.currentData()

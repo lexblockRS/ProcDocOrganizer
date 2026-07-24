@@ -58,6 +58,7 @@ class Application:
             manager=self.project_manager,
             state=self.project_state,
             session_factory=self.project_session_factory,
+            application_registry=self.application_registry,
         )
 
     # ------------------------------------------------------------------

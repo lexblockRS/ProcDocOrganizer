@@ -7,6 +7,7 @@ class RscApplication:
     """Identidade e compatibilidade arquitetural da Application RSC."""
 
     application_id = "rsc"
+    display_name = "RSC"
 
     def can_open(self, project: Project) -> bool:
         return (
