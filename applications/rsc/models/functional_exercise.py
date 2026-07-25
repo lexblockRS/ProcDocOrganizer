@@ -139,12 +139,31 @@ class FunctionalPeriod:
     def is_closed(self) -> bool:
         return self.end_date is not None
 
+    @property
+    def duration_days(self) -> int | None:
+        if self.end_date is None:
+            return None
+        return (self.end_date - self.start_date).days + 1
+
     def contains(self, target: date) -> bool:
         self._require_date(target, "target")
         return (
             target >= self.start_date
             and (self.end_date is None or target <= self.end_date)
         )
+
+    def overlaps(self, other: "FunctionalPeriod") -> bool:
+        if not isinstance(other, FunctionalPeriod):
+            raise TypeError("other deve ser FunctionalPeriod.")
+        return (
+            self.end_date is None or other.start_date <= self.end_date
+        ) and (
+            other.end_date is None or self.start_date <= other.end_date
+        )
+
+    def ends_before(self, target: date) -> bool:
+        self._require_date(target, "target")
+        return self.end_date is not None and self.end_date < target
 
     @staticmethod
     def _require_date(value: object, field: str) -> None:
@@ -207,6 +226,44 @@ class FunctionalExercise:
             and self.period.is_open
         ):
             raise ValueError("status ENDED exige período fechado.")
+
+    @property
+    def is_active(self) -> bool:
+        return self.status is FunctionalExerciseStatus.ACTIVE
+
+    @property
+    def is_ended(self) -> bool:
+        return self.status is FunctionalExerciseStatus.ENDED
+
+    def was_active_on(self, target: date) -> bool:
+        return self.period.contains(target)
+
+    def overlaps(self, other: "FunctionalExercise") -> bool:
+        if not isinstance(other, FunctionalExercise):
+            raise TypeError("other deve ser FunctionalExercise.")
+        return self.period.overlaps(other.period)
+
+    def end(self, end_date: date) -> "FunctionalExercise":
+        FunctionalPeriod._require_date(end_date, "end_date")
+        if self.is_ended:
+            raise ValueError("exercício funcional já está encerrado.")
+        if self.period.is_closed:
+            raise ValueError(
+                "exercício funcional ativo deve possuir período aberto."
+            )
+        closed_period = FunctionalPeriod(
+            start_date=self.period.start_date,
+            end_date=end_date,
+        )
+        return FunctionalExercise(
+            id=self.id,
+            person_id=self.person_id,
+            exercise_type=self.exercise_type,
+            role=self.role,
+            context=self.context,
+            period=closed_period,
+            status=FunctionalExerciseStatus.ENDED,
+        )
 
     @staticmethod
     def _require_instance(

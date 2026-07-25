@@ -285,6 +285,108 @@ class FunctionalPeriodTests(unittest.TestCase):
         self.assertTrue(period.contains(date(2030, 1, 1)))
         self.assertFalse(period.contains(date(2023, 12, 31)))
 
+    def test_single_day_duration_is_one(self):
+        target = date(2024, 1, 1)
+
+        self.assertEqual(
+            FunctionalPeriod(target, target).duration_days,
+            1,
+        )
+
+    def test_duration_uses_inclusive_day_count(self):
+        period = FunctionalPeriod(date(2024, 3, 1), date(2024, 3, 3))
+
+        self.assertEqual(period.duration_days, 3)
+
+    def test_open_period_has_no_duration(self):
+        self.assertIsNone(
+            FunctionalPeriod(date(2024, 1, 1)).duration_days
+        )
+
+    def test_closed_periods_overlap(self):
+        first = FunctionalPeriod(date(2024, 1, 1), date(2024, 1, 10))
+        second = FunctionalPeriod(date(2024, 1, 5), date(2024, 1, 20))
+
+        self.assertTrue(first.overlaps(second))
+        self.assertTrue(second.overlaps(first))
+
+    def test_closed_periods_do_not_overlap(self):
+        first = FunctionalPeriod(date(2024, 1, 1), date(2024, 1, 9))
+        second = FunctionalPeriod(date(2024, 1, 10), date(2024, 1, 20))
+
+        self.assertFalse(first.overlaps(second))
+        self.assertFalse(second.overlaps(first))
+
+    def test_periods_overlap_at_shared_boundary(self):
+        first = FunctionalPeriod(date(2024, 1, 1), date(2024, 1, 10))
+        second = FunctionalPeriod(date(2024, 1, 10), date(2024, 1, 20))
+
+        self.assertTrue(first.overlaps(second))
+        self.assertTrue(second.overlaps(first))
+
+    def test_open_period_overlaps_later_closed_period(self):
+        open_period = FunctionalPeriod(date(2024, 1, 1))
+        closed_period = FunctionalPeriod(
+            date(2030, 1, 1),
+            date(2030, 1, 31),
+        )
+
+        self.assertTrue(open_period.overlaps(closed_period))
+        self.assertTrue(closed_period.overlaps(open_period))
+
+    def test_open_period_does_not_overlap_earlier_closed_period(self):
+        open_period = FunctionalPeriod(date(2024, 1, 10))
+        closed_period = FunctionalPeriod(
+            date(2024, 1, 1),
+            date(2024, 1, 9),
+        )
+
+        self.assertFalse(open_period.overlaps(closed_period))
+        self.assertFalse(closed_period.overlaps(open_period))
+
+    def test_two_open_periods_overlap(self):
+        first = FunctionalPeriod(date(2024, 1, 1))
+        second = FunctionalPeriod(date(2030, 1, 1))
+
+        self.assertTrue(first.overlaps(second))
+        self.assertTrue(second.overlaps(first))
+
+    def test_period_overlap_rejects_invalid_type(self):
+        with self.assertRaises(TypeError):
+            FunctionalPeriod(date(2024, 1, 1)).overlaps(object())
+
+    def test_closed_period_ends_before_later_date(self):
+        period = FunctionalPeriod(date(2024, 1, 1), date(2024, 1, 10))
+
+        self.assertTrue(period.ends_before(date(2024, 1, 11)))
+
+    def test_closed_period_does_not_end_before_equal_date(self):
+        period = FunctionalPeriod(date(2024, 1, 1), date(2024, 1, 10))
+
+        self.assertFalse(period.ends_before(date(2024, 1, 10)))
+
+    def test_closed_period_does_not_end_before_earlier_date(self):
+        period = FunctionalPeriod(date(2024, 1, 1), date(2024, 1, 10))
+
+        self.assertFalse(period.ends_before(date(2024, 1, 9)))
+
+    def test_open_period_never_ends_before_date(self):
+        period = FunctionalPeriod(date(2024, 1, 1))
+
+        self.assertFalse(period.ends_before(date(2030, 1, 1)))
+
+    def test_ends_before_rejects_invalid_type(self):
+        with self.assertRaises(TypeError):
+            FunctionalPeriod(date(2024, 1, 1)).ends_before(
+                "2024-01-02"
+            )
+
+    def test_ends_before_rejects_datetime(self):
+        with self.assertRaises(TypeError):
+            FunctionalPeriod(date(2024, 1, 1)).ends_before(
+                datetime(2024, 1, 2)
+            )
+
 
 class FunctionalExerciseTests(unittest.TestCase):
     def test_creates_valid_active_exercise(self):
@@ -353,6 +455,164 @@ class FunctionalExerciseTests(unittest.TestCase):
 
     def test_equality_is_by_value(self):
         self.assertEqual(exercise(), exercise())
+
+    def test_active_and_ended_properties(self):
+        active = exercise()
+        ended = exercise(
+            period=FunctionalPeriod(
+                date(2024, 1, 1),
+                date(2024, 12, 31),
+            ),
+            status=FunctionalExerciseStatus.ENDED,
+        )
+
+        self.assertTrue(active.is_active)
+        self.assertFalse(active.is_ended)
+        self.assertFalse(ended.is_active)
+        self.assertTrue(ended.is_ended)
+
+    def test_was_active_on_closed_period_dates(self):
+        item = exercise(
+            period=FunctionalPeriod(
+                date(2024, 1, 10),
+                date(2024, 1, 20),
+            ),
+            status=FunctionalExerciseStatus.ENDED,
+        )
+
+        self.assertTrue(item.was_active_on(date(2024, 1, 10)))
+        self.assertTrue(item.was_active_on(date(2024, 1, 15)))
+        self.assertTrue(item.was_active_on(date(2024, 1, 20)))
+        self.assertFalse(item.was_active_on(date(2024, 1, 9)))
+        self.assertFalse(item.was_active_on(date(2024, 1, 21)))
+
+    def test_active_exercise_was_active_on_later_date(self):
+        item = exercise(
+            period=FunctionalPeriod(date(2024, 1, 10)),
+        )
+
+        self.assertTrue(item.was_active_on(date(2030, 1, 1)))
+
+    def test_was_active_on_rejects_invalid_type_and_datetime(self):
+        item = exercise()
+
+        with self.assertRaises(TypeError):
+            item.was_active_on("2024-01-01")
+        with self.assertRaises(TypeError):
+            item.was_active_on(datetime(2024, 1, 1))
+
+    def test_exercises_with_overlapping_periods_overlap(self):
+        first = exercise(
+            period=FunctionalPeriod(date(2024, 1, 1)),
+        )
+        second = exercise(
+            period=FunctionalPeriod(
+                date(2024, 2, 1),
+                date(2024, 2, 28),
+            ),
+            status=FunctionalExerciseStatus.ENDED,
+        )
+
+        self.assertTrue(first.overlaps(second))
+
+    def test_exercises_without_overlapping_periods_do_not_overlap(self):
+        first = exercise(
+            period=FunctionalPeriod(
+                date(2024, 1, 1),
+                date(2024, 1, 31),
+            ),
+            status=FunctionalExerciseStatus.ENDED,
+        )
+        second = exercise(
+            period=FunctionalPeriod(date(2024, 2, 1)),
+        )
+
+        self.assertFalse(first.overlaps(second))
+
+    def test_different_people_can_have_overlapping_exercises(self):
+        first = exercise(person_id="person-1")
+        second = exercise(person_id="person-2")
+
+        self.assertTrue(first.overlaps(second))
+
+    def test_different_types_can_have_overlapping_exercises(self):
+        first = exercise()
+        second = FunctionalExercise(
+            id=FunctionalExerciseId(
+                "87654321-4321-8765-4321-876543218765"
+            ),
+            person_id="person-1",
+            exercise_type=FunctionalExerciseType(
+                "representacao",
+                "Representação",
+            ),
+            role=FunctionalRole("Representante"),
+            context=FunctionalContext("Instituição"),
+            period=FunctionalPeriod(date(2024, 1, 1)),
+            status=FunctionalExerciseStatus.ACTIVE,
+        )
+
+        self.assertTrue(first.overlaps(second))
+
+    def test_exercise_overlap_rejects_invalid_type(self):
+        with self.assertRaises(TypeError):
+            exercise().overlaps(object())
+
+    def test_end_closes_active_exercise(self):
+        original = exercise()
+
+        ended = original.end(date(2024, 12, 31))
+
+        self.assertIsNot(ended, original)
+        self.assertTrue(original.is_active)
+        self.assertTrue(original.period.is_open)
+        self.assertTrue(ended.is_ended)
+        self.assertTrue(ended.period.is_closed)
+        self.assertEqual(ended.period.start_date, date(2024, 1, 1))
+        self.assertEqual(ended.period.end_date, date(2024, 12, 31))
+
+    def test_end_preserves_identity_and_other_attributes(self):
+        original = exercise()
+
+        ended = original.end(date(2024, 12, 31))
+
+        self.assertIs(ended.id, original.id)
+        self.assertEqual(ended.person_id, original.person_id)
+        self.assertIs(ended.exercise_type, original.exercise_type)
+        self.assertIs(ended.role, original.role)
+        self.assertIs(ended.context, original.context)
+
+    def test_end_accepts_start_date(self):
+        original = exercise()
+
+        ended = original.end(date(2024, 1, 1))
+
+        self.assertEqual(ended.period.duration_days, 1)
+        self.assertTrue(ended.is_ended)
+
+    def test_end_rejects_date_before_start(self):
+        with self.assertRaises(ValueError):
+            exercise().end(date(2023, 12, 31))
+
+    def test_end_rejects_invalid_type(self):
+        with self.assertRaises(TypeError):
+            exercise().end("2024-12-31")
+
+    def test_end_rejects_datetime(self):
+        with self.assertRaises(TypeError):
+            exercise().end(datetime(2024, 12, 31))
+
+    def test_end_rejects_already_ended_exercise(self):
+        ended = exercise(
+            period=FunctionalPeriod(
+                date(2024, 1, 1),
+                date(2024, 12, 31),
+            ),
+            status=FunctionalExerciseStatus.ENDED,
+        )
+
+        with self.assertRaises(ValueError):
+            ended.end(date(2025, 1, 1))
 
 
 class RscModelExportsTests(unittest.TestCase):
