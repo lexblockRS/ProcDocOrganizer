@@ -13,8 +13,11 @@ class BaseView(QWidget):
     aos eventos do ciclo de vida do projeto.
     """
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, *, title="", icon=None, parent=None):
+        super().__init__(parent)
+        self.title = title
+        self.icon = icon
+        self.state = None
 
     # ------------------------------------------------------------------
 
@@ -24,6 +27,16 @@ class BaseView(QWidget):
         """
         pass
 
+    def on_project_open(self, project):
+        """Contrato padronizado para abertura de projeto."""
+
+        return self.on_project_opened(project)
+
+    def on_project_changed(self, project):
+        """Contrato padronizado para troca do projeto ativo."""
+
+        return self.on_project_opened(project)
+
     # ------------------------------------------------------------------
 
     def on_project_closed(self):
@@ -32,6 +45,11 @@ class BaseView(QWidget):
         """
         pass
 
+    def on_project_close(self):
+        """Contrato padronizado para fechamento de projeto."""
+
+        return self.on_project_closed()
+
     # ------------------------------------------------------------------
 
     def refresh(self):
@@ -39,4 +57,3 @@ class BaseView(QWidget):
         Atualiza os dados exibidos na View.
         """
         pass
-    

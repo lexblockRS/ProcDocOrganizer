@@ -1,5 +1,5 @@
 from .project import Project
-from .document import Document
+from .document import Document, DocumentProcessingStatus, DocumentStatus
 from .document_type import DocumentType
 from .evidence import Evidence
 from .evidence_requests import CreateEvidenceRequest, UpdateEvidenceRequest
@@ -16,6 +16,8 @@ from .search_result import SearchResult
 __all__ = [
     "Project",
     "Document",
+    "DocumentProcessingStatus",
+    "DocumentStatus",
     "DocumentType",
     "Evidence",
     "CreateEvidenceRequest",

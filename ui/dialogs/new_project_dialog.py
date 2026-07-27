@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from models.project import LEGACY_APPLICATION_ID
+from contracts import ApplicationDescriptor
 from ui.dialogs.base_dialog import BaseDialog
 
 
@@ -25,12 +25,12 @@ class NewProjectDialog(BaseDialog):
     Diálogo para criação de um novo projeto.
     """
 
-    def __init__(self, parent=None, applications=()):
+    def __init__(self, parent=None, descriptors=()):
         super().__init__(parent)
-        self._applications = tuple(applications)
+        self._descriptors = self._validated_descriptors(descriptors)
 
         self.setWindowTitle("Novo Projeto")
-        self.resize(520, 180)
+        self.resize(520, 300)
 
         self._build_ui()
         self._connect_signals()
@@ -60,19 +60,29 @@ class NewProjectDialog(BaseDialog):
         )
 
         self.application_selector = QComboBox()
-        self.application_selector.addItem(
-            "Projeto legado / ProcDocOrganizer",
-            LEGACY_APPLICATION_ID,
-        )
-        for application in self._applications:
+        for descriptor in self._descriptors:
             self.application_selector.addItem(
-                application.display_name,
-                application.application_id,
+                descriptor.display_name,
+                descriptor.application_id,
             )
         form.addRow(
             "Tipo de Projeto:",
             self.application_selector,
         )
+
+        self.application_description = QLabel()
+        self.application_description.setWordWrap(True)
+        form.addRow("Descrição:", self.application_description)
+
+        self.application_version = QLabel()
+        form.addRow("Versão:", self.application_version)
+
+        self.application_compatibility = QLabel()
+        self.application_compatibility.setWordWrap(True)
+        form.addRow("Compatibilidade:", self.application_compatibility)
+
+        self.application_schema = QLabel()
+        form.addRow("Schema:", self.application_schema)
 
         folder_widget = QWidget()
 
@@ -122,6 +132,10 @@ class NewProjectDialog(BaseDialog):
             self._validate
         )
 
+        self.application_selector.currentIndexChanged.connect(
+            self._show_selected_descriptor
+        )
+
         self.browse_button.clicked.connect(
             self._select_folder
         )
@@ -133,6 +147,8 @@ class NewProjectDialog(BaseDialog):
         self.create_button.clicked.connect(
             self.accept
         )
+
+        self._show_selected_descriptor()
 
     # ------------------------------------------------------------------
 
@@ -153,6 +169,7 @@ class NewProjectDialog(BaseDialog):
         valid = (
             bool(self.project_name.text().strip())
             and bool(self.project_folder.text().strip())
+            and self.application_selector.currentIndex() >= 0
         )
 
         self.create_button.setEnabled(valid)
@@ -181,3 +198,45 @@ class NewProjectDialog(BaseDialog):
         """Retorna a identidade da Application selecionada."""
 
         return self.application_selector.currentData()
+
+    @staticmethod
+    def _validated_descriptors(descriptors) -> tuple[ApplicationDescriptor, ...]:
+        values = tuple(descriptors)
+        if any(
+            not isinstance(descriptor, ApplicationDescriptor)
+            for descriptor in values
+        ):
+            raise TypeError(
+                "descriptors deve conter apenas ApplicationDescriptor."
+            )
+        return tuple(
+            sorted(values, key=lambda item: item.application_id)
+        )
+
+    def _show_selected_descriptor(self) -> None:
+        index = self.application_selector.currentIndex()
+        descriptor = (
+            self._descriptors[index]
+            if 0 <= index < len(self._descriptors)
+            else None
+        )
+        if descriptor is None:
+            self.application_description.clear()
+            self.application_version.clear()
+            self.application_compatibility.clear()
+            self.application_schema.clear()
+            return
+
+        self.application_description.setText(
+            descriptor.description or "Não informada"
+        )
+        self.application_version.setText(str(descriptor.version))
+        self.application_compatibility.setText(
+            f"Plataforma {descriptor.minimum_platform_version} ou superior"
+        )
+        schemas = descriptor.supported_project_schema_versions
+        self.application_schema.setText(
+            ", ".join(str(version) for version in schemas)
+            if schemas
+            else "Não especificado"
+        )

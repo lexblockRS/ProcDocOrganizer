@@ -1,7 +1,10 @@
 """Workspace visual, somente leitura, para navegação documental."""
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QGroupBox, QLabel, QSplitter, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QGroupBox, QHBoxLayout, QLabel, QPushButton, QSplitter, QVBoxLayout,
+    QWidget,
+)
 
 from ui.widgets.document_list_widget import DocumentListWidget
 from ui.widgets.document_metadata_widget import DocumentMetadataWidget
@@ -13,6 +16,8 @@ class DocumentsWorkspace(QWidget):
     document_selected = Signal(object)
     page_selected = Signal(object)
     create_evidence_requested = Signal()
+    import_requested = Signal()
+    remove_requested = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -27,6 +32,23 @@ class DocumentsWorkspace(QWidget):
         self.status_label = QLabel()
         self.message_label = QLabel()
         self.message_label.setWordWrap(True)
+        self.import_button = QPushButton("Importar Documento")
+        self.import_button.setAccessibleName("Importar documento")
+        self.import_button.setToolTip(
+            "Copiar um documento para o acervo do projeto"
+        )
+        self.remove_button = QPushButton("Remover Documento")
+        self.remove_button.setAccessibleName("Remover documento")
+        self.remove_button.setToolTip(
+            "Remover o documento selecionado do acervo"
+        )
+        self.remove_button.setEnabled(False)
+        self.import_button.clicked.connect(self.import_requested)
+        self.remove_button.clicked.connect(self.remove_requested)
+        actions = QHBoxLayout()
+        actions.addWidget(self.import_button)
+        actions.addWidget(self.remove_button)
+        actions.addStretch(1)
 
         self.document_list_widget = DocumentListWidget()
         self.metadata_widget = DocumentMetadataWidget()
@@ -58,6 +80,7 @@ class DocumentsWorkspace(QWidget):
         layout.addWidget(title)
         layout.addWidget(self.status_label)
         layout.addWidget(self.message_label)
+        layout.addLayout(actions)
         layout.addWidget(splitter, 1)
 
         self.document_list_widget.document_selected.connect(
@@ -100,6 +123,7 @@ class DocumentsWorkspace(QWidget):
     def set_details(self, details) -> None:
         self.details = details
         self.metadata_widget.set_details(details)
+        self.remove_button.setEnabled(details is not None)
         if details is not None and not details.summary.has_processing_result:
             self.metadata_widget.show_unprocessed()
 
@@ -124,6 +148,7 @@ class DocumentsWorkspace(QWidget):
         self.metadata_widget.clear()
         self.page_list_widget.clear()
         self.text_widget.clear()
+        self.remove_button.setEnabled(False)
 
     def show_message(self, message: str) -> None:
         self.message_label.setText(message)

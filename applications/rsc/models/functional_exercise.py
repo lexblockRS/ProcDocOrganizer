@@ -5,6 +5,8 @@ from datetime import date, datetime
 from enum import Enum
 from uuid import UUID
 
+from .functional_assignment_evidence import FunctionalAssignmentEvidenceId
+
 
 def _normalized_text(value: object, field: str) -> str:
     if not isinstance(value, str):
@@ -182,6 +184,9 @@ class FunctionalExercise:
     context: FunctionalContext
     period: FunctionalPeriod
     status: FunctionalExerciseStatus
+    functional_assignment_evidence_ids: tuple[
+        FunctionalAssignmentEvidenceId, ...
+    ] = ()
 
     def __post_init__(self) -> None:
         self._require_instance(
@@ -216,6 +221,26 @@ class FunctionalExercise:
             FunctionalExerciseStatus,
             "status",
         )
+        if not isinstance(
+            self.functional_assignment_evidence_ids,
+            tuple,
+        ):
+            raise TypeError(
+                "functional_assignment_evidence_ids deve ser uma tupla."
+            )
+        for evidence_id in self.functional_assignment_evidence_ids:
+            self._require_instance(
+                evidence_id,
+                FunctionalAssignmentEvidenceId,
+                "functional_assignment_evidence_ids",
+            )
+        if len(set(self.functional_assignment_evidence_ids)) != len(
+            self.functional_assignment_evidence_ids
+        ):
+            raise ValueError(
+                "functional_assignment_evidence_ids não pode conter "
+                "duplicidades."
+            )
         if (
             self.status is FunctionalExerciseStatus.ACTIVE
             and self.period.is_closed
@@ -263,6 +288,9 @@ class FunctionalExercise:
             context=self.context,
             period=closed_period,
             status=FunctionalExerciseStatus.ENDED,
+            functional_assignment_evidence_ids=(
+                self.functional_assignment_evidence_ids
+            ),
         )
 
     @staticmethod

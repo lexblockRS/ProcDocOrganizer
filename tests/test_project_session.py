@@ -71,6 +71,21 @@ class ContributionInstallerSpy:
         self.calls.append(("clear",))
 
 
+class DashboardControllerSpy:
+    def __init__(self):
+        self.sessions = []
+        self.clear_count = 0
+
+    def set_session(self, active_session):
+        self.sessions.append(active_session)
+
+    def clear_session(self):
+        self.clear_count += 1
+
+    def refresh(self):
+        return True
+
+
 def session(project, marker, application=None):
     return SimpleNamespace(
         project=project,
@@ -81,6 +96,7 @@ def session(project, marker, application=None):
         search_service=object(),
         evidence_service=object(),
         application=application,
+        rsc_session=None,
     )
 
 
@@ -97,6 +113,7 @@ def controller_for_session_tests(factory, active_session=None):
     controller.documents_controller = ServiceControllerSpy()
     controller.evidence_controller = ServiceControllerSpy()
     controller.contribution_installer = ContributionInstallerSpy()
+    controller.dashboard_controller = DashboardControllerSpy()
     return controller
 
 
@@ -135,6 +152,8 @@ class ProjectSessionFactoryTests(unittest.TestCase):
             for attribute in (
                 "document_repository",
                 "document_service",
+                "document_processor",
+                "document_indexer",
                 "search_service",
                 "evidence_service",
             ):
@@ -221,6 +240,10 @@ class ProjectSessionLifecycleTests(unittest.TestCase):
             controller.evidence_controller.services,
             [new_session.evidence_service],
         )
+        self.assertEqual(
+            controller.dashboard_controller.sessions,
+            [new_session],
+        )
         self.assertIsNone(controller.selected_document)
 
     def test_close_clears_controller_references_and_active_session(self):
@@ -239,6 +262,10 @@ class ProjectSessionLifecycleTests(unittest.TestCase):
         self.assertIsNone(controller.search_controller.service)
         self.assertIsNone(controller.documents_controller.service)
         self.assertIsNone(controller.evidence_controller.service)
+        self.assertEqual(
+            controller.dashboard_controller.clear_count,
+            1,
+        )
         self.assertEqual(controller.window.clear_count, 1)
 
     def test_close_cancel_preserves_session_and_dependencies(self):
@@ -254,6 +281,10 @@ class ProjectSessionLifecycleTests(unittest.TestCase):
 
         self.assertIs(controller.session, active)
         self.assertIs(controller.state.current_project, project)
+        self.assertEqual(
+            controller.dashboard_controller.clear_count,
+            0,
+        )
         self.assertEqual(controller.window.clear_count, 0)
 
 

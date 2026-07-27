@@ -26,13 +26,13 @@ class NewProjectApplicationSelectionTests(unittest.TestCase):
     def setUp(self):
         self.registry = ApplicationRegistry([RscApplication()])
         self.dialog = NewProjectDialog(
-            applications=self.registry.applications
+            descriptors=self.registry.descriptors
         )
 
     def tearDown(self):
         self.dialog.close()
 
-    def test_dialog_lists_legacy_and_registered_applications(self):
+    def test_dialog_lists_registered_application_descriptors(self):
         options = {
             self.dialog.application_selector.itemData(index):
             self.dialog.application_selector.itemText(index)
@@ -41,22 +41,9 @@ class NewProjectApplicationSelectionTests(unittest.TestCase):
             )
         }
 
-        self.assertEqual(
-            options[LEGACY_APPLICATION_ID],
-            "Projeto legado / ProcDocOrganizer",
-        )
         self.assertEqual(options["rsc"], "RSC")
 
     def test_dialog_returns_selected_application_id(self):
-        legacy_index = self.dialog.application_selector.findData(
-            LEGACY_APPLICATION_ID
-        )
-        self.dialog.application_selector.setCurrentIndex(legacy_index)
-        self.assertEqual(
-            self.dialog.get_application_id(),
-            LEGACY_APPLICATION_ID,
-        )
-
         rsc_index = self.dialog.application_selector.findData("rsc")
         self.dialog.application_selector.setCurrentIndex(rsc_index)
         self.assertEqual(self.dialog.get_application_id(), "rsc")
@@ -120,7 +107,7 @@ class ProjectCreationApplicationFlowTests(unittest.TestCase):
 
         dialog_class.assert_called_once_with(
             controller.window,
-            applications=registry.applications,
+            descriptors=registry.descriptors,
         )
         controller.manager.create_project.assert_called_once_with(
             "Projeto",

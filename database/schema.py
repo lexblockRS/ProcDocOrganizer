@@ -1,6 +1,6 @@
 """Definição do schema SQLite do ProcDoc Organizer."""
 
-SUPPORTED_SCHEMA_VERSION = 3
+SUPPORTED_SCHEMA_VERSION = 7
 INDEX_VERSION = 2
 
 MIGRATION_V1_STATEMENTS = (
@@ -78,4 +78,130 @@ MIGRATION_V3_STATEMENTS = (
     )""",
     "UPDATE index_state SET value = '2' WHERE key = 'index_version'",
     "UPDATE index_state SET value = '3' WHERE key = 'schema_version'",
+)
+
+MIGRATION_V4_STATEMENTS = (
+    """CREATE TABLE rsc_functional_assignment_evidences (
+        id TEXT PRIMARY KEY NOT NULL,
+        insertion_order INTEGER NOT NULL UNIQUE CHECK(insertion_order > 0),
+        person_id TEXT NOT NULL,
+        source_evidence_reference TEXT NOT NULL,
+        exercise_type_code TEXT NOT NULL,
+        exercise_type_label TEXT NOT NULL,
+        role TEXT NOT NULL,
+        organization TEXT NOT NULL,
+        start_date TEXT,
+        end_date TEXT,
+        unit TEXT,
+        administrative_reference TEXT,
+        status TEXT NOT NULL,
+        CHECK(length(trim(person_id)) > 0),
+        CHECK(length(trim(source_evidence_reference)) > 0),
+        CHECK(length(trim(exercise_type_code)) > 0),
+        CHECK(length(trim(exercise_type_label)) > 0),
+        CHECK(length(trim(role)) > 0),
+        CHECK(length(trim(organization)) > 0),
+        CHECK(end_date IS NULL OR start_date IS NULL OR end_date >= start_date),
+        CHECK(status IN ('raw', 'normalized', 'identified', 'linked'))
+    )""",
+    "CREATE INDEX idx_rsc_assignment_evidences_source "
+    "ON rsc_functional_assignment_evidences(source_evidence_reference)",
+    "UPDATE index_state SET value = '4' WHERE key = 'schema_version'",
+)
+
+MIGRATION_V5_STATEMENTS = (
+    """CREATE TABLE rsc_functional_exercises (
+        id TEXT PRIMARY KEY NOT NULL,
+        insertion_order INTEGER NOT NULL UNIQUE CHECK(insertion_order > 0),
+        person_id TEXT NOT NULL,
+        exercise_type_code TEXT NOT NULL,
+        exercise_type_label TEXT NOT NULL,
+        role TEXT NOT NULL,
+        context_organization TEXT NOT NULL,
+        context_unit TEXT,
+        context_reference TEXT,
+        start_date TEXT NOT NULL,
+        end_date TEXT,
+        status TEXT NOT NULL,
+        CHECK(length(trim(person_id)) > 0),
+        CHECK(length(trim(exercise_type_code)) > 0),
+        CHECK(length(trim(exercise_type_label)) > 0),
+        CHECK(length(trim(role)) > 0),
+        CHECK(length(trim(context_organization)) > 0),
+        CHECK(end_date IS NULL OR end_date >= start_date),
+        CHECK(status IN ('active', 'ended'))
+    )""",
+    """CREATE TABLE rsc_functional_exercise_assignment_evidences (
+        exercise_id TEXT NOT NULL,
+        assignment_evidence_id TEXT NOT NULL,
+        ordinal INTEGER NOT NULL CHECK(ordinal >= 0),
+        PRIMARY KEY(exercise_id, ordinal),
+        UNIQUE(exercise_id, assignment_evidence_id),
+        FOREIGN KEY(exercise_id)
+            REFERENCES rsc_functional_exercises(id) ON DELETE CASCADE,
+        FOREIGN KEY(assignment_evidence_id)
+            REFERENCES rsc_functional_assignment_evidences(id)
+    )""",
+    "CREATE INDEX idx_rsc_exercise_assignment_evidence "
+    "ON rsc_functional_exercise_assignment_evidences"
+    "(assignment_evidence_id)",
+    "UPDATE index_state SET value = '5' WHERE key = 'schema_version'",
+)
+
+MIGRATION_V6_STATEMENTS = (
+    """CREATE TABLE rsc_activities (
+        activity_id TEXT PRIMARY KEY NOT NULL,
+        insertion_order INTEGER NOT NULL UNIQUE CHECK(insertion_order > 0),
+        description TEXT NOT NULL,
+        state TEXT NOT NULL,
+        CHECK(length(trim(activity_id)) > 0),
+        CHECK(length(trim(description)) > 0),
+        CHECK(state IN (
+            'lembrada',
+            'em_investigacao',
+            'parcialmente_comprovada',
+            'comprovada'
+        ))
+    )""",
+    """CREATE TABLE rsc_activity_functional_assignment_evidences (
+        activity_id TEXT NOT NULL,
+        evidence_id TEXT NOT NULL,
+        ordinal INTEGER NOT NULL CHECK(ordinal >= 0),
+        PRIMARY KEY(activity_id, ordinal),
+        UNIQUE(activity_id, evidence_id),
+        FOREIGN KEY(activity_id)
+            REFERENCES rsc_activities(activity_id) ON DELETE CASCADE,
+        FOREIGN KEY(evidence_id)
+            REFERENCES rsc_functional_assignment_evidences(id)
+    )""",
+    "CREATE INDEX idx_rsc_activity_assignment_evidence "
+    "ON rsc_activity_functional_assignment_evidences(evidence_id)",
+    """CREATE TABLE rsc_activity_functional_exercises (
+        activity_id TEXT NOT NULL,
+        exercise_id TEXT NOT NULL,
+        ordinal INTEGER NOT NULL CHECK(ordinal >= 0),
+        PRIMARY KEY(activity_id, ordinal),
+        UNIQUE(activity_id, exercise_id),
+        FOREIGN KEY(activity_id)
+            REFERENCES rsc_activities(activity_id) ON DELETE CASCADE,
+        FOREIGN KEY(exercise_id)
+            REFERENCES rsc_functional_exercises(id)
+    )""",
+    "CREATE INDEX idx_rsc_activity_functional_exercise "
+    "ON rsc_activity_functional_exercises(exercise_id)",
+    "UPDATE index_state SET value = '6' WHERE key = 'schema_version'",
+)
+
+MIGRATION_V7_STATEMENTS = (
+    "ALTER TABLE documents ADD COLUMN document_id TEXT",
+    "ALTER TABLE documents ADD COLUMN stored_filename TEXT",
+    "ALTER TABLE documents ADD COLUMN relative_path TEXT",
+    "ALTER TABLE documents ADD COLUMN file_size INTEGER",
+    "ALTER TABLE documents ADD COLUMN extension TEXT",
+    "ALTER TABLE documents ADD COLUMN mime_type TEXT",
+    "ALTER TABLE documents ADD COLUMN imported_at TEXT",
+    "ALTER TABLE documents ADD COLUMN status TEXT",
+    "CREATE UNIQUE INDEX idx_documents_document_id "
+    "ON documents(document_id) WHERE document_id IS NOT NULL",
+    "UPDATE index_state SET value = '7' WHERE key = 'schema_version'",
 )

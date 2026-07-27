@@ -12,6 +12,11 @@ class SearchDocumentSourceResolver:
     """Consulta a infraestrutura atual sem expô-la aos casos de uso."""
 
     def __init__(self, project_or_database: Project | str | Path) -> None:
+        self.project_path = (
+            project_or_database.project_path
+            if isinstance(project_or_database, Project)
+            else None
+        )
         self.database_path = (
             project_or_database.project_path / project_or_database.database
             if isinstance(project_or_database, Project)
@@ -23,9 +28,16 @@ class SearchDocumentSourceResolver:
         if stored_identity is None:
             return False
         with ProjectDatabase(self.database_path) as database:
-            return database.connection.execute(
-                "SELECT 1 FROM documents WHERE sha256 = ?", (stored_identity,)
-            ).fetchone() is not None
+            row = database.connection.execute(
+                "SELECT stored_path FROM documents WHERE sha256 = ?",
+                (stored_identity,),
+            ).fetchone()
+        if row is None:
+            return False
+        stored_path = row["stored_path"]
+        if self.project_path is not None and stored_path:
+            return (self.project_path / stored_path).is_file()
+        return True
 
     @staticmethod
     def _stored_identity(value: object) -> str | None:

@@ -3,6 +3,10 @@ Serviços do ProcDocOrganizer.
 """
 
 from .document_importer import DocumentImporter
+from .document_import_service import (
+    DocumentImportResult,
+    DocumentImportService,
+)
 from .document_repository import DocumentRepository
 from .evidence_repository_errors import (
     DuplicateEvidenceError,
@@ -33,6 +37,8 @@ from .document_service import (
 
 __all__ = [
     "DocumentImporter",
+    "DocumentImportResult",
+    "DocumentImportService",
     "DocumentRepository",
     "EvidenceRepository",
     "DocumentSourceResolver",

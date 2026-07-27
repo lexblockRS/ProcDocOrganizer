@@ -19,3 +19,4 @@ class FunctionalExerciseDTO:
     start_date: date
     end_date: date | None
     status: str
+    functional_assignment_evidence_ids: tuple[str, ...] = ()

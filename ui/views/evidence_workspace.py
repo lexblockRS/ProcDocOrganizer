@@ -21,6 +21,7 @@ class EvidenceWorkspace(QWidget):
     evidence_selected = Signal(object)
     draft_changed = Signal(object)
     open_document_requested = Signal()
+    interpret_functionally_requested = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -29,6 +30,11 @@ class EvidenceWorkspace(QWidget):
         self.cancel_button = QPushButton("Cancelar")
         self.delete_button = QPushButton("Excluir")
         self.refresh_button = QPushButton("Atualizar lista")
+        self.interpret_button = QPushButton("Interpretar funcionalmente")
+        self.open_document_button = QPushButton("Abrir documento")
+        self.open_document_button.setEnabled(False)
+        self.interpret_button.setVisible(False)
+        self.interpret_button.setEnabled(False)
         self.count_label = QLabel("0 evidências")
         self.dirty_label = QLabel("")
         self.message_label = QLabel("")
@@ -36,7 +42,9 @@ class EvidenceWorkspace(QWidget):
 
         actions = QHBoxLayout()
         for widget in (
-            self.new_button, self.save_button, self.cancel_button,
+            self.new_button, self.interpret_button,
+            self.open_document_button,
+            self.save_button, self.cancel_button,
             self.delete_button, self.refresh_button,
         ):
             actions.addWidget(widget)
@@ -67,6 +75,12 @@ class EvidenceWorkspace(QWidget):
         self.cancel_button.clicked.connect(self.cancel_requested)
         self.delete_button.clicked.connect(self.delete_requested)
         self.refresh_button.clicked.connect(self.refresh_requested)
+        self.interpret_button.clicked.connect(
+            self.interpret_functionally_requested
+        )
+        self.open_document_button.clicked.connect(
+            self.open_document_requested
+        )
         self.list_widget.evidence_selected.connect(self.evidence_selected)
         self.editor_widget.draft_changed.connect(self.draft_changed)
         QShortcut(QKeySequence.StandardKey.Save, self).activated.connect(self.save_requested)
@@ -85,6 +99,12 @@ class EvidenceWorkspace(QWidget):
 
     def set_source_status(self, status) -> None:
         self.source_status_widget.set_status(status)
+        value = getattr(status, "value", status)
+        self._source_available = value == "available"
+        self.open_document_button.setEnabled(
+            self._source_available
+            and self.list_widget.current_evidence_id() is not None
+        )
 
     def select_evidence(self, evidence_id) -> None:
         self.list_widget.select_evidence(evidence_id)
@@ -99,6 +119,10 @@ class EvidenceWorkspace(QWidget):
         self.cancel_button.setEnabled(dirty or creating)
         self.delete_button.setEnabled(selected)
         self.new_button.setEnabled(True)
+        self.interpret_button.setEnabled(selected)
+        self.open_document_button.setEnabled(
+            selected and getattr(self, "_source_available", False)
+        )
         self.dirty_label.setText("Alterações não salvas" if dirty else "")
 
     def _apply_editor_projection(
@@ -125,6 +149,12 @@ class EvidenceWorkspace(QWidget):
         self.cancel_button.setEnabled(cancel_enabled)
         self.delete_button.setEnabled(delete_enabled)
         self.new_button.setEnabled(True)
+        self.interpret_button.setEnabled(delete_enabled)
+        source_value = getattr(source_status, "value", source_status)
+        self._source_available = source_value == "available"
+        self.open_document_button.setEnabled(
+            delete_enabled and self._source_available
+        )
         self.dirty_label.setText("Alterações não salvas" if dirty else "")
 
     def show_message(self, message: str) -> None:
@@ -142,6 +172,13 @@ class EvidenceWorkspace(QWidget):
         self.dirty_label.clear()
         self.message_label.clear()
         self.set_editor_state("empty", False, False)
+
+    def set_functional_interpretation_available(self, available: bool):
+        self.interpret_button.setVisible(bool(available))
+        self.interpret_button.setEnabled(
+            bool(available)
+            and self.list_widget.current_evidence_id() is not None
+        )
 
     def on_project_opened(self, _project) -> None:
         pass

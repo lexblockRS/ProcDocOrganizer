@@ -3,6 +3,9 @@
 Este registro mínimo reúne decisões homologadas no Épico Search. O módulo não
 possui ainda um diretório ou processo próprio para ADRs.
 
+Estas decisões devem ser interpretadas conforme os princípios gerais descritos
+na [Visão do Domínio](architecture/domain-vision.md).
+
 ## ADR-010 — Search produz SearchHit
 
 Search retorna ocorrências (`SearchHit`), nunca `Document` ou arquivos físicos.
@@ -36,11 +39,19 @@ O adaptador de consulta continua abrindo SQLite em modo somente leitura.
 A V1 usa `offset` e busca `limit + 1` registros. `has_more` é conhecido sem
 exigir `total_hits`, que pode permanecer `None`.
 
-## ADR-016 — Score
+## ADR-016 — Score de Relevância da Pesquisa
 
 Score representa relevância relativa somente dentro da mesma consulta. Maior
 valor público significa maior relevância, sem comparabilidade obrigatória entre
 consultas ou mecanismos.
+
+O score representa exclusivamente relevância de pesquisa. Não representa:
+
+- pontuação normativa;
+- mérito;
+- classificação funcional;
+- pontuação RSC;
+- duração de exercício.
 
 ## DT-004 — Remover contratos legados de Search
 

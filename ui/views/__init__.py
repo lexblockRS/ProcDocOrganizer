@@ -8,6 +8,10 @@ from .pdf_view import PdfView
 from .search_workspace import SearchWorkspace
 from .evidence_workspace import EvidenceWorkspace
 from .documents_workspace import DocumentsWorkspace
+from .documents_view import DocumentsView
+from .activities_view import ActivitiesView
+from .functional_assignments_view import FunctionalAssignmentsView
+from .functional_exercises_view import FunctionalExercisesView
 
 __all__ = [
     "BaseView",
@@ -16,4 +20,8 @@ __all__ = [
     "SearchWorkspace",
     "EvidenceWorkspace",
     "DocumentsWorkspace",
+    "DocumentsView",
+    "ActivitiesView",
+    "FunctionalAssignmentsView",
+    "FunctionalExercisesView",
 ]

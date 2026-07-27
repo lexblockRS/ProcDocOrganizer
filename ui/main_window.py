@@ -2,6 +2,10 @@
 Janela principal do ProcDocOrganizer.
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
@@ -16,11 +20,24 @@ from PySide6.QtWidgets import (
     QToolBar,
 )
 
-from models import Document, Project
-from ui.views import (
-    DocumentsWorkspace, EvidenceWorkspace, HomeView, PdfView, SearchWorkspace,
+from contracts import ContributionCategory
+from core.contribution_manager import ContributionManager
+from ui.views.documents_view import DocumentsView
+from ui.views.evidence_workspace import EvidenceWorkspace
+from ui.views.home_view import HomeView
+from ui.views.pdf_view import PdfView
+from ui.views.search_workspace import SearchWorkspace
+from ui.main_window_contributions import (
+    WindowActionSpec,
+    WindowToolbarSpec,
+    WindowViewSpec,
+    create_compatibility_contribution_manager,
 )
 from ui.widgets import ProjectTreeWidget
+from ui.view_manager import ViewManager
+
+if TYPE_CHECKING:
+    from models import Document, Project
 
 
 class MainWindow(QMainWindow):
@@ -28,14 +45,21 @@ class MainWindow(QMainWindow):
     Janela principal da aplicação.
     """
 
-    def __init__(self):
+    def __init__(
+        self,
+        contribution_manager: ContributionManager | None = None,
+    ):
         super().__init__()
 
+        self.contribution_manager = (
+            contribution_manager
+            if contribution_manager is not None
+            else create_compatibility_contribution_manager()
+        )
         self.setWindowTitle("ProcDocOrganizer")
         self.resize(1400, 900)
 
         self.project = None
-        self.views = {}
         self._base_menus_by_id: dict[str, QMenu] = {}
         self._application_menus_by_id: dict[str, QMenu] = {}
 
@@ -43,6 +67,7 @@ class MainWindow(QMainWindow):
         self._create_menu()
         self._create_toolbar()
         self._create_central_area()
+        self._install_contributions()
         self._create_right_dock()
         self._create_statusbar()
 
@@ -79,7 +104,6 @@ class MainWindow(QMainWindow):
         )
         self.action_documents_workspace = QAction("Documentos", self)
         self.action_documents_workspace.setEnabled(False)
-
         self.action_new_evidence = QAction(
             "Nova Evidência",
             self,
@@ -161,7 +185,6 @@ class MainWindow(QMainWindow):
         classification_menu.addAction(
             self.action_recalculate
         )
-
         # ---------------- Ferramentas ----------------
 
         tools_menu = menu.addMenu("Ferramentas")
@@ -243,11 +266,14 @@ class MainWindow(QMainWindow):
     def _create_toolbar(self):
 
         toolbar = QToolBar("Principal")
+        toolbar.setObjectName("main")
+        self._toolbars_by_id = {"main": toolbar}
 
         toolbar.setMovable(False)
 
         toolbar.addAction(self.action_new_project)
         toolbar.addAction(self.action_open_project)
+        toolbar.addAction(self.action_close_project)
 
         toolbar.addSeparator()
 
@@ -268,7 +294,6 @@ class MainWindow(QMainWindow):
             self.action_search_processed_text
         )
         toolbar.addAction(self.action_evidence_workspace)
-
         self.addToolBar(toolbar)
 
     # ------------------------------------------------------------------
@@ -276,28 +301,52 @@ class MainWindow(QMainWindow):
     def _create_central_area(self):
 
         self.stack = QStackedWidget()
+        self.view_manager = ViewManager(self.stack)
 
-        home_view = HomeView()
+        home_view = HomeView(self.contribution_manager)
         pdf_view = PdfView()
         search_workspace = SearchWorkspace()
         evidence_workspace = EvidenceWorkspace()
-        documents_workspace = DocumentsWorkspace()
-
-        self.views["home"] = home_view
-        self.views["pdf"] = pdf_view
-        self.views["search"] = search_workspace
-        self.views["evidence"] = evidence_workspace
-        self.views["documents"] = documents_workspace
+        documents_workspace = DocumentsView()
+        for view_id, view in (
+            ("home", home_view),
+            ("pdf", pdf_view),
+            ("search", search_workspace),
+            ("evidence", evidence_workspace),
+            ("documents", documents_workspace),
+        ):
+            self.view_manager.register(view_id, view)
+        self.views = self.view_manager.views
         self.pdf_view = pdf_view
         self.search_workspace = search_workspace
         self.evidence_workspace = evidence_workspace
         self.documents_workspace = documents_workspace
+        self.home_view = home_view
 
-        self.stack.addWidget(home_view)
-        self.stack.addWidget(pdf_view)
-        self.stack.addWidget(search_workspace)
-        self.stack.addWidget(evidence_workspace)
-        self.stack.addWidget(documents_workspace)
+        home_view.new_project_requested.connect(
+            self.action_new_project.trigger
+        )
+        home_view.open_project_requested.connect(
+            self.action_open_project.trigger
+        )
+        home_view.documents_requested.connect(
+            self.action_documents_workspace.trigger
+        )
+        home_view.search_requested.connect(
+            self.action_search_processed_text.trigger
+        )
+        home_view.evidences_requested.connect(
+            self.action_evidence_workspace.trigger
+        )
+        home_view.import_documents_requested.connect(
+            self.action_import_documents.trigger
+        )
+        home_view.process_documents_requested.connect(
+            self.action_process_pending_documents.trigger
+        )
+        documents_workspace.import_requested.connect(
+            self.action_import_documents.trigger
+        )
 
         self.project_tree = ProjectTreeWidget()
         self.project_tree.setMinimumWidth(180)
@@ -317,6 +366,75 @@ class MainWindow(QMainWindow):
         self.content_splitter.setSizes([280, 900])
 
         self.setCentralWidget(self.content_splitter)
+
+    def _install_contributions(self) -> None:
+        """Materializa contribuições sem reconhecer Applications concretas."""
+
+        self._installed_window_actions = []
+        for registration in self.contribution_manager.by_category(
+            ContributionCategory.ACTION
+        ):
+            contribution = registration.contribution
+            if not isinstance(contribution, WindowActionSpec):
+                continue
+            if hasattr(self, contribution.attribute_name):
+                raise ValueError(
+                    "Atributo de action duplicado: "
+                    f"{contribution.attribute_name}."
+                )
+            action = QAction(contribution.text, self)
+            action.setVisible(contribution.visible)
+            action.setEnabled(contribution.enabled)
+            if contribution.tooltip is not None:
+                action.setToolTip(contribution.tooltip)
+            if contribution.object_name is not None:
+                action.setObjectName(contribution.object_name)
+            self.get_menu(contribution.menu_id).addAction(action)
+            setattr(self, contribution.attribute_name, action)
+            self._installed_window_actions.append(
+                (action, contribution)
+            )
+
+        for registration in self.contribution_manager.by_category(
+            ContributionCategory.VIEW
+        ):
+            contribution = registration.contribution
+            if not isinstance(contribution, WindowViewSpec):
+                continue
+            if contribution.view_id in self.views:
+                raise ValueError(
+                    f"View duplicada: {contribution.view_id}."
+                )
+            view = contribution.factory()
+            self.view_manager.register(contribution.view_id, view)
+            setattr(self, contribution.attribute_name, view)
+            setattr(
+                self,
+                contribution.show_method_name,
+                lambda view_id=contribution.view_id: self.show_view(view_id),
+            )
+            if contribution.open_project_action is not None:
+                view.open_project_requested.connect(
+                    getattr(
+                        self,
+                        contribution.open_project_action,
+                    ).trigger
+                )
+
+        for registration in self.contribution_manager.by_category(
+            ContributionCategory.TOOLBAR
+        ):
+            contribution = registration.contribution
+            if not isinstance(contribution, WindowToolbarSpec):
+                continue
+            toolbar = self._toolbars_by_id.get(contribution.toolbar_id)
+            if toolbar is None:
+                raise KeyError(
+                    f"Toolbar não registrada: {contribution.toolbar_id}."
+                )
+            toolbar.addAction(
+                getattr(self, contribution.action_attribute)
+            )
 
     # ------------------------------------------------------------------
 
@@ -385,10 +503,7 @@ class MainWindow(QMainWindow):
         Exibe uma view registrada.
         """
 
-        view = self.views.get(name)
-
-        if view is not None:
-            self.stack.setCurrentWidget(view)
+        return self.view_manager.show(name)
 
     # ------------------------------------------------------------------
 
@@ -401,6 +516,7 @@ class MainWindow(QMainWindow):
         Atualiza toda a interface para um projeto aberto.
         """
 
+        previous_project = self.project
         self.project = project
         self.action_evidence_workspace.setEnabled(True)
         self.action_new_evidence.setEnabled(True)
@@ -420,10 +536,10 @@ class MainWindow(QMainWindow):
         self.pdf_view.clear_document()
         self.show_view("home")
 
-        for view in self.views.values():
-            callback = getattr(view, "on_project_opened", None)
-            if callback is not None:
-                callback(project)
+        if previous_project is None:
+            self.view_manager.notify_project_opened(project)
+        else:
+            self.view_manager.notify_project_changed(project)
 
     # ------------------------------------------------------------------
 
@@ -436,6 +552,9 @@ class MainWindow(QMainWindow):
         self.action_evidence_workspace.setEnabled(False)
         self.action_new_evidence.setEnabled(False)
         self.action_documents_workspace.setEnabled(False)
+        for action, contribution in self._installed_window_actions:
+            if contribution.disable_on_project_close:
+                action.setEnabled(False)
 
         self.project_tree.clear_project()
 
@@ -448,12 +567,9 @@ class MainWindow(QMainWindow):
         self.pdf_view.clear_document()
         self.show_view("home")
 
-        for view in self.views.values():
-            if view is self.evidence_workspace:
-                continue
-            callback = getattr(view, "on_project_closed", None)
-            if callback is not None:
-                callback()
+        self.view_manager.notify_project_closed(
+            exclude=(self.evidence_workspace,)
+        )
 
     # ------------------------------------------------------------------
 

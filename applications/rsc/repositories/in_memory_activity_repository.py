@@ -12,6 +12,9 @@ class InMemoryActivityRepository:
     def add(self, activity: Activity) -> None:
         self._activities[activity.activity_id] = activity
 
+    def save(self, activity: Activity) -> None:
+        self._activities[activity.activity_id] = activity
+
     def get(self, activity_id: str) -> Activity | None:
         return self._activities.get(activity_id)
 

@@ -13,6 +13,13 @@ from .document_list_widget import DocumentListWidget
 from .document_metadata_widget import DocumentMetadataWidget
 from .document_page_list_widget import DocumentPageListWidget
 from .document_text_widget import DocumentTextWidget
+from .dashboard_widgets import (
+    DashboardHeader,
+    DashboardSection,
+    ResponsiveCardGrid,
+    ShortcutButton,
+    SummaryCard,
+)
 
 __all__ = [
     "ProjectTreeWidget",
@@ -26,4 +33,9 @@ __all__ = [
     "DocumentMetadataWidget",
     "DocumentPageListWidget",
     "DocumentTextWidget",
+    "DashboardHeader",
+    "DashboardSection",
+    "ResponsiveCardGrid",
+    "ShortcutButton",
+    "SummaryCard",
 ]

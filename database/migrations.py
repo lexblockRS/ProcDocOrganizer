@@ -6,6 +6,10 @@ from .schema import (
     MIGRATION_V1_STATEMENTS,
     MIGRATION_V2_STATEMENTS,
     MIGRATION_V3_STATEMENTS,
+    MIGRATION_V4_STATEMENTS,
+    MIGRATION_V5_STATEMENTS,
+    MIGRATION_V6_STATEMENTS,
+    MIGRATION_V7_STATEMENTS,
     SUPPORTED_SCHEMA_VERSION,
 )
 
@@ -57,6 +61,47 @@ def _apply_migration_v3(connection: sqlite3.Connection) -> None:
     connection.execute("PRAGMA user_version = 3")
 
 
+def _apply_migration_v4(connection: sqlite3.Connection) -> None:
+    for statement in MIGRATION_V4_STATEMENTS:
+        connection.execute(statement)
+    connection.execute("PRAGMA user_version = 4")
+
+
+def _apply_migration_v5(connection: sqlite3.Connection) -> None:
+    for statement in MIGRATION_V5_STATEMENTS:
+        connection.execute(statement)
+    connection.execute("PRAGMA user_version = 5")
+
+
+def _apply_migration_v6(connection: sqlite3.Connection) -> None:
+    for statement in MIGRATION_V6_STATEMENTS:
+        connection.execute(statement)
+    connection.execute("PRAGMA user_version = 6")
+
+
+def _apply_migration_v7(connection: sqlite3.Connection) -> None:
+    existing_columns = {
+        row[1]
+        for row in connection.execute(
+            "PRAGMA table_info(documents)"
+        ).fetchall()
+    }
+    for statement in MIGRATION_V7_STATEMENTS:
+        if statement.startswith("ALTER TABLE documents ADD COLUMN"):
+            column = statement.split()[5]
+            if column in existing_columns:
+                continue
+            existing_columns.add(column)
+        if statement.startswith("CREATE UNIQUE INDEX"):
+            statement = statement.replace(
+                "CREATE UNIQUE INDEX",
+                "CREATE UNIQUE INDEX IF NOT EXISTS",
+                1,
+            )
+        connection.execute(statement)
+    connection.execute("PRAGMA user_version = 7")
+
+
 def apply_migrations(connection: sqlite3.Connection) -> None:
     """Aplica migrations pendentes em uma transação única."""
 
@@ -78,6 +123,14 @@ def apply_migrations(connection: sqlite3.Connection) -> None:
             _apply_migration_v2(connection)
         if current_version < 3:
             _apply_migration_v3(connection)
+        if current_version < 4:
+            _apply_migration_v4(connection)
+        if current_version < 5:
+            _apply_migration_v5(connection)
+        if current_version < 6:
+            _apply_migration_v6(connection)
+        if current_version < 7:
+            _apply_migration_v7(connection)
         connection.commit()
     except (FTS5UnavailableError, SchemaVersionError):
         connection.rollback()

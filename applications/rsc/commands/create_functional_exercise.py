@@ -17,3 +17,4 @@ class CreateFunctionalExerciseCommand:
     end_date: date | None = None
     context_unit: str | None = None
     context_reference: str | None = None
+    functional_assignment_evidence_ids: tuple[str, ...] = ()

@@ -2,9 +2,10 @@ import ast
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+from unittest.mock import patch
 
 from applications import RscApplication
-from contracts import Application
+from contracts import Application, ApplicationModule
 from core.application_registry import (
     ApplicationNotRegisteredError,
     ApplicationRegistry,
@@ -29,7 +30,9 @@ class RscApplicationTests(unittest.TestCase):
         application = RscApplication()
 
         self.assertIsInstance(application, Application)
+        self.assertIsInstance(application, ApplicationModule)
         self.assertEqual(application.application_id, "rsc")
+        self.assertIs(application.descriptor, RscApplication.descriptor)
 
     def test_accepts_only_rsc_projects(self):
         application = RscApplication()
@@ -110,6 +113,31 @@ class RscApplicationCompositionTests(unittest.TestCase):
 
             self.assertIs(session.application, application)
 
+    def test_factory_creates_exactly_one_rsc_session(self):
+        with TemporaryDirectory() as temporary_directory:
+            project = ProjectManager().create_project(
+                "RSC",
+                Path(temporary_directory),
+                application_id="rsc",
+            )
+            application = RscApplication()
+
+            with patch.object(
+                application,
+                "create_session",
+                wraps=application.create_session,
+            ) as create_session:
+                session = ProjectSessionFactory(
+                    ApplicationRegistry([application])
+                ).create(project)
+
+            create_session.assert_called_once()
+            self.assertIs(
+                session.rsc_session,
+                session.platform_session
+                .application_runtime.application_session,
+            )
+
     def test_factory_does_not_import_rsc_application(self):
         source = (
             Path(__file__).parents[1]
@@ -119,16 +147,19 @@ class RscApplicationCompositionTests(unittest.TestCase):
 
         self.assertNotIn("RscApplication", source)
         self.assertNotIn("applications.rsc", source)
+        self.assertNotIn("_create_rsc_session", source)
+        self.assertNotIn("RSC_APPLICATION_ID", source)
 
-    def test_desktop_composition_root_registers_rsc_explicitly(self):
+    def test_desktop_composition_root_discovers_rsc_without_direct_import(self):
         source = (
             Path(__file__).parents[1]
             / "core"
             / "application.py"
         ).read_text(encoding="utf-8")
 
-        self.assertIn("ApplicationRegistry([", source)
-        self.assertIn("RscApplication()", source)
+        self.assertIn("ApplicationCatalog.discover()", source)
+        self.assertNotIn("RscApplication", source)
+        self.assertNotIn("from applications", source)
         self.assertIn(
             "ProjectSessionFactory(", source
         )

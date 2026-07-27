@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import hashlib
 import shutil
+from uuid import uuid4
 from pathlib import Path
 
 from models import Document, Project
@@ -107,7 +108,8 @@ class DocumentImporter:
 
             for source in sources:
 
-                destination = self.documents_folder / source.name
+                stored_filename = f"{uuid4()}{source.suffix.lower()}"
+                destination = self.documents_folder / stored_filename
 
                 shutil.copy2(source, destination)
                 copied_files.append(destination)
@@ -115,7 +117,10 @@ class DocumentImporter:
                 documents.append(
                     Document.create(
                         name=source.name,
-                        relative_path=f"documents/{source.name}",
+                        stored_filename=stored_filename,
+                        relative_path=f"documents/{stored_filename}",
+                        file_size=source.stat().st_size,
+                        extension=source.suffix.lower(),
                         pages=self._get_page_count(destination),
                         sha256=self._calculate_sha256(destination),
                     )

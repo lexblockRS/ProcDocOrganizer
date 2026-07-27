@@ -2,6 +2,7 @@
 
 import hashlib
 from pathlib import Path
+from typing import Callable
 
 from models import Document, Project
 
@@ -27,6 +28,9 @@ class DocumentProcessor:
         ocr_engine: OCREngine | None = None,
         text_merger: TextMerger | None = None,
         parser_registry: ParserRegistry | None = None,
+        document_indexer=None,
+        processing_repository_factory: Callable[[Project], ProcessingRepository]
+        | None = None,
     ):
         self.metadata_extractor = (
             metadata_extractor or DocumentMetadataExtractor()
@@ -36,6 +40,10 @@ class DocumentProcessor:
             page_classifier=page_classifier,
             ocr_engine=ocr_engine,
             text_merger=text_merger,
+        )
+        self.document_indexer = document_indexer
+        self._repository_factory = (
+            processing_repository_factory or ProcessingRepository
         )
 
     # ------------------------------------------------------------------
@@ -49,7 +57,7 @@ class DocumentProcessor:
         Processa um documento ou reutiliza um resultado válido.
         """
 
-        repository = ProcessingRepository(project)
+        repository = self._repository_factory(project)
         document_file = project.project_path / document.relative_path
         document_sha256 = document.sha256
 
@@ -64,6 +72,7 @@ class DocumentProcessor:
 
                 if metadata_changed:
                     repository.save(existing_result)
+                self._index(repository, document, existing_result)
                 return existing_result
 
             parser = self.parser_registry.resolve(document_file)
@@ -86,6 +95,7 @@ class DocumentProcessor:
             )
 
         repository.save(result)
+        self._index(repository, document, result)
 
         return result
 
@@ -116,7 +126,7 @@ class DocumentProcessor:
 
         document_file = project.project_path / document.relative_path
         document_sha256 = self._calculate_sha256(document_file)
-        repository = ProcessingRepository(project)
+        repository = self._repository_factory(project)
         result = repository.load(document_sha256)
 
         if result is None or not result.is_valid_for(document_sha256):
@@ -127,7 +137,50 @@ class DocumentProcessor:
         if metadata_changed:
             repository.save(result)
 
+        self._index(repository, document, result)
+        if not result.is_valid_for(document_sha256):
+            return None
+
         return result
+
+    def _index(
+        self,
+        repository: ProcessingRepository,
+        document: Document,
+        result: ProcessingResult,
+    ) -> None:
+        """Atualiza a projeção de pesquisa após persistir o resultado canônico."""
+
+        if self.document_indexer is None:
+            return
+
+        result_file = repository.result_file(result.document_sha256)
+        try:
+            self.document_indexer.index_processing_result(
+                result_file,
+                original_filename=document.original_filename,
+                stored_path=document.relative_path,
+            )
+        except Exception as exc:
+            original_status = result.status
+            result.status = "failed"
+            result.error = (
+                f"Falha ao indexar resultado com status '{original_status}': "
+                f"{exc}"
+            )
+            repository.save(result)
+            try:
+                self.document_indexer.index_processing_result(
+                    result_file,
+                    original_filename=document.original_filename,
+                    stored_path=document.relative_path,
+                )
+            except Exception as cleanup_exc:
+                result.error += (
+                    " Não foi possível confirmar a remoção do índice textual: "
+                    f"{cleanup_exc}"
+                )
+                repository.save(result)
 
     # ------------------------------------------------------------------
 

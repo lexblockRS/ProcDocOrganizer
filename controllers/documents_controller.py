@@ -20,11 +20,13 @@ class DocumentsController:
         "Não foi possível localizar a página solicitada."
     )
     def __init__(
-        self, workspace, document_service=None, evidence_source_requested=None
+        self, workspace, document_service=None, evidence_source_requested=None,
+        document_remove_requested=None,
     ):
         self.workspace = workspace
         self.service = document_service
         self.evidence_source_requested = evidence_source_requested
+        self.document_remove_requested = document_remove_requested
         self.catalog = ()
         self.selected_identity = None
         self.selected_page_number = None
@@ -34,6 +36,18 @@ class DocumentsController:
             workspace.create_evidence_requested.connect(
                 self.request_create_evidence
             )
+        if hasattr(workspace, "remove_requested"):
+            workspace.remove_requested.connect(self.request_remove_document)
+
+    def request_remove_document(self) -> bool:
+        if (
+            self.document_remove_requested is None
+            or self.selected_identity is None
+        ):
+            return False
+        return bool(
+            self.document_remove_requested(self.selected_identity)
+        )
 
     def set_evidence_source_requested(self, callback) -> None:
         self.evidence_source_requested = callback

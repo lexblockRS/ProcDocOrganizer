@@ -8,3 +8,5 @@ class CreateActivityCommand:
     """Dados de entrada do caso de uso CreateActivity."""
 
     description: str
+    functional_assignment_evidence_ids: tuple[str, ...] = ()
+    functional_exercise_ids: tuple[str, ...] = ()

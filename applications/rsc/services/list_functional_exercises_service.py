@@ -27,6 +27,11 @@ class ListFunctionalExercisesService:
                 start_date=exercise.period.start_date,
                 end_date=exercise.period.end_date,
                 status=exercise.status.value,
+                functional_assignment_evidence_ids=tuple(
+                    str(evidence_id)
+                    for evidence_id
+                    in exercise.functional_assignment_evidence_ids
+                ),
             )
             for exercise in self._repository.list_all()
         )

@@ -95,6 +95,17 @@ class WindowSpy:
         self.clear_count += 1
 
 
+class RuntimeSpy:
+    def __init__(self):
+        self.calls = []
+
+    def activate(self):
+        self.calls.append("activate")
+
+    def dispose(self):
+        self.calls.append("dispose")
+
+
 def project_session(project, application=None):
     return SimpleNamespace(
         project=project,
@@ -105,6 +116,9 @@ def project_session(project, application=None):
         document_service=object(),
         search_service=object(),
         evidence_service=object(),
+        platform_session=SimpleNamespace(
+            application_runtime=RuntimeSpy()
+        ),
     )
 
 
@@ -118,7 +132,7 @@ def controller_for(session, *, active_session=None, installer=None):
     controller.session_factory = SimpleNamespace(
         create=lambda _project: session
     )
-    controller.application_registry = SimpleNamespace(applications=())
+    controller.application_registry = SimpleNamespace(descriptors=())
     controller.contribution_installer = installer or InstallerSpy()
     controller.session = active_session
     controller.selected_document = object()
@@ -129,6 +143,34 @@ def controller_for(session, *, active_session=None, installer=None):
 
 
 class ApplicationContributionLifecycleTests(unittest.TestCase):
+    def test_load_activates_new_runtime_after_installation(self):
+        project = object()
+        created = project_session(project)
+        controller = controller_for(created)
+
+        controller._load_project(project)
+
+        self.assertEqual(
+            created.platform_session.application_runtime.calls,
+            ["activate"],
+        )
+
+    def test_switch_disposes_previous_runtime_after_new_activation(self):
+        old = project_session(object())
+        new = project_session(object())
+        controller = controller_for(new, active_session=old)
+
+        controller._load_project(new.project)
+
+        self.assertEqual(
+            new.platform_session.application_runtime.calls,
+            ["activate"],
+        )
+        self.assertEqual(
+            old.platform_session.application_runtime.calls,
+            ["dispose"],
+        )
+
     def test_initial_project_installs_application_contributions(self):
         project = object()
         contribution = action("initial")
@@ -227,6 +269,10 @@ class ApplicationContributionLifecycleTests(unittest.TestCase):
         )
         self.assertIsNone(controller.session)
         self.assertIsNone(controller.state.current_project)
+        self.assertEqual(
+            active.platform_session.application_runtime.calls,
+            ["dispose"],
+        )
 
     def test_close_without_project_clears_idempotently(self):
         session = project_session(object())

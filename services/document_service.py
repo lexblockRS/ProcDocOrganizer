@@ -121,6 +121,14 @@ class DocumentService:
             ),
             availability=self._availability(document),
             has_processing_result=result is not None,
+            extension=getattr(document, "extension", ""),
+            file_size=getattr(document, "file_size", 0),
+            imported_at=document.imported_at,
+            status=(
+                document.status.value
+                if hasattr(document.status, "value")
+                else document.status
+            ),
         )
 
     def _page(self, document, result, page) -> DocumentPageSummary:

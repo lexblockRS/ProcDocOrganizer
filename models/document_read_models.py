@@ -24,6 +24,10 @@ class DocumentSummary:
     processing_status: str
     availability: DocumentAvailability
     has_processing_result: bool
+    extension: str = ""
+    file_size: int = 0
+    imported_at: str = ""
+    status: str = "imported"
 
 
 @dataclass(frozen=True)

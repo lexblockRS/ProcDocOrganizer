@@ -1,180 +1,245 @@
-"""
-Repositório de documentos do ProcDocOrganizer.
-"""
+"""Repository SQLite do acervo documental de um projeto."""
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
+import sqlite3
 
-from models import Document, Project
+from database import ProjectDatabase
+from models import (
+    Document, DocumentProcessingStatus, DocumentStatus, Project,
+)
 
 
 class DocumentRepository:
-    """
-    Gerencia os documentos de um projeto.
-    """
+    """Persiste o catálogo documental sem executar análise."""
 
-    FILE_NAME = "documents.db.json"
-
-    # ------------------------------------------------------------------
-
-    def __init__(
-        self,
-        project: Project,
-    ):
+    def __init__(self, project: Project):
         self.project = project
-        self.documents: list[Document] = []
-
-    # ------------------------------------------------------------------
-
-    @property
-    def repository_file(self) -> Path:
-        """
-        Retorna o caminho do arquivo de persistência.
-        """
-
-        return self.project.project_path / self.FILE_NAME
-
-    # ------------------------------------------------------------------
+        self.database_path = project.project_path / project.database
 
     def load(self) -> None:
-        """
-        Carrega os documentos do projeto.
-        """
-
-        if not self.repository_file.exists():
-            self.documents = []
-            return
-
-        data = json.loads(
-            self.repository_file.read_text(
-                encoding="utf-8"
-            )
-        )
-
-        if not isinstance(data, list):
-            raise ValueError(
-                "O arquivo de documentos possui formato inválido."
-            )
-
-        self.documents = [
-            Document.from_dict(item)
-            for item in data
-        ]
-
-    # ------------------------------------------------------------------
+        """Inicializa/migra o banco; mantido para compatibilidade."""
+        with ProjectDatabase(self.database_path):
+            pass
 
     def save(self) -> None:
-        """
-        Salva os documentos do projeto.
-        """
+        """Compatibilidade: operações individuais já são transacionais."""
 
-        data = [
-            document.to_dict()
-            for document in self.documents
-        ]
-
-        temporary_file = self.repository_file.with_suffix(
-            self.repository_file.suffix + ".tmp"
-        )
-
+    def create(self, document: Document) -> Document:
+        if not isinstance(document, Document):
+            raise TypeError("document deve ser Document.")
         try:
-            temporary_file.write_text(
-                json.dumps(
-                    data,
-                    indent=4,
-                    ensure_ascii=False,
-                ),
-                encoding="utf-8",
-            )
+            with ProjectDatabase(self.database_path) as database:
+                with database.transaction() as connection:
+                    connection.execute(
+                        """INSERT INTO documents (
+                            document_id, sha256, original_filename,
+                            stored_path, stored_filename, relative_path,
+                            file_size, extension, mime_type, imported_at,
+                            status, processing_status, page_count,
+                            document_type, created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                        self._to_row(document),
+                    )
+            return document
+        except sqlite3.IntegrityError as exc:
+            raise ValueError(
+                "O documento já existe no projeto."
+            ) from exc
 
-            temporary_file.replace(self.repository_file)
+    def update(self, document: Document) -> None:
+        if not isinstance(document, Document):
+            raise TypeError("document deve ser Document.")
+        with ProjectDatabase(self.database_path) as database:
+            with database.transaction() as connection:
+                result = connection.execute(
+                    """UPDATE documents SET
+                        sha256=?, original_filename=?, stored_path=?,
+                        stored_filename=?, relative_path=?, file_size=?,
+                        extension=?, mime_type=?, imported_at=?, status=?,
+                        processing_status=?, page_count=?, document_type=?,
+                        updated_at=?
+                    WHERE document_id=?""",
+                    (
+                        document.sha256,
+                        document.original_filename,
+                        document.relative_path,
+                        document.stored_filename,
+                        document.relative_path,
+                        document.file_size,
+                        document.extension,
+                        document.mime_type,
+                        document.imported_at,
+                        (
+                            document.status.value
+                            if isinstance(document.status, DocumentStatus)
+                            else document.status
+                        ),
+                        (
+                            document.processing_status.value
+                            if isinstance(
+                                document.processing_status,
+                                DocumentProcessingStatus,
+                            )
+                            else document.processing_status
+                        ),
+                        document.pages,
+                        document.document_type,
+                        Document.now(),
+                        document.id,
+                    ),
+                )
+                if result.rowcount != 1:
+                    raise ValueError(
+                        f"O documento '{document.name}' não existe no projeto."
+                    )
 
-        finally:
-            temporary_file.unlink(missing_ok=True)
+    def delete(self, document_id: str) -> Document | None:
+        document = self.find_by_id(document_id)
+        if document is None:
+            return None
+        with ProjectDatabase(self.database_path) as database:
+            with database.transaction() as connection:
+                row = connection.execute(
+                    "SELECT id FROM documents WHERE document_id = ?",
+                    (document_id,),
+                ).fetchone()
+                if row is None:
+                    return None
+                internal_id = row["id"]
+                connection.execute(
+                    "DELETE FROM document_pages_fts WHERE document_id = ?",
+                    (internal_id,),
+                )
+                connection.execute(
+                    "DELETE FROM document_pages WHERE document_id = ?",
+                    (internal_id,),
+                )
+                connection.execute(
+                    "DELETE FROM search_index_documents "
+                    "WHERE document_identity = ?",
+                    (document.sha256,),
+                )
+                connection.execute(
+                    "DELETE FROM documents WHERE document_id = ?",
+                    (document_id,),
+                )
+        return document
 
-    # ------------------------------------------------------------------
+    def find_by_id(self, document_id: str) -> Document | None:
+        return self._find("document_id", document_id)
+
+    def find_by_hash(self, sha256: str) -> Document | None:
+        return self._find("sha256", sha256)
+
+    def list_all(self) -> tuple[Document, ...]:
+        with ProjectDatabase(self.database_path) as database:
+            rows = database.connection.execute(
+                "SELECT * FROM documents WHERE document_id IS NOT NULL "
+                "ORDER BY imported_at, id"
+            ).fetchall()
+        return tuple(self._from_row(row) for row in rows)
 
     def list_documents(self) -> list[Document]:
-        """
-        Retorna uma cópia da lista de documentos.
-        """
-
         return sorted(
-            self.documents,
+            self.list_all(),
             key=lambda document: document.name.lower(),
         )
 
-    # ------------------------------------------------------------------
+    def add(self, document: Document) -> None:
+        self.create(document)
 
-    def add(
-        self,
-        document: Document,
-    ) -> None:
-        """
-        Adiciona um documento ao repositório.
-        """
-
-        for existing in self.documents:
-            if existing.relative_path == document.relative_path:
-                raise ValueError(
-                    f"O documento '{document.name}' já existe no projeto."
-                )
-
-        self.documents.append(document)
-
-    # ------------------------------------------------------------------
-
-    def update(self, document: Document) -> None:
-        """
-        Atualiza os metadados de um documento existente.
-        """
-
-        for index, existing in enumerate(self.documents):
-            if existing.relative_path == document.relative_path:
-                self.documents[index] = document
-                return
-
-        raise ValueError(
-            f"O documento '{document.name}' não existe no projeto."
-        )
-
-    # ------------------------------------------------------------------
-
-    def remove(
-        self,
-        document: Document,
-    ) -> None:
-        """
-        Remove um documento do repositório.
-        """
-
-        self.documents.remove(document)
-
-    # ------------------------------------------------------------------
+    def remove(self, document: Document) -> None:
+        removed = self.delete(document.id)
+        if removed is None:
+            raise ValueError(
+                f"O documento '{document.name}' não existe no projeto."
+            )
 
     def clear(self) -> None:
-        """
-        Remove todos os documentos do repositório.
-        """
-
-        self.documents.clear()
-
-    # ------------------------------------------------------------------
+        with ProjectDatabase(self.database_path) as database:
+            with database.transaction() as connection:
+                connection.execute(
+                    "DELETE FROM documents WHERE document_id IS NOT NULL"
+                )
 
     def __len__(self) -> int:
-        """
-        Retorna a quantidade de documentos.
-        """
-
-        return len(self.documents)
-
-    # ------------------------------------------------------------------
+        return len(self.list_all())
 
     def __iter__(self):
-        """
-        Permite iterar diretamente sobre o repositório.
-        """
+        return iter(self.list_all())
 
-        return iter(self.documents)
+    def _find(self, column: str, value: str):
+        if not isinstance(value, str) or not value.strip():
+            return None
+        with ProjectDatabase(self.database_path) as database:
+            row = database.connection.execute(
+                f"SELECT * FROM documents WHERE {column} = ?",
+                (value.strip(),),
+            ).fetchone()
+        return self._from_row(row) if row is not None else None
+
+    @staticmethod
+    def _to_row(document):
+        return (
+            document.id,
+            document.sha256,
+            document.original_filename,
+            document.relative_path,
+            document.stored_filename,
+            document.relative_path,
+            document.file_size,
+            document.extension,
+            document.mime_type,
+            document.imported_at,
+            (
+                document.status.value
+                if isinstance(document.status, DocumentStatus)
+                else document.status
+            ),
+            (
+                document.processing_status.value
+                if isinstance(
+                    document.processing_status,
+                    DocumentProcessingStatus,
+                )
+                else document.processing_status
+            ),
+            document.pages,
+            document.document_type,
+            document.created_at,
+            document.updated_at,
+        )
+
+    @staticmethod
+    def _from_row(row):
+        return Document(
+            name=row["original_filename"],
+            relative_path=row["relative_path"] or row["stored_path"],
+            imported_at=row["imported_at"] or row["created_at"],
+            pages=row["page_count"],
+            sha256=row["sha256"],
+            status=DocumentStatus(row["status"] or "imported"),
+            document_type=row["document_type"] or "unknown",
+            processing_status=DocumentRepository._processing_status(
+                row["processing_status"]
+            ),
+            id=row["document_id"],
+            original_filename=row["original_filename"],
+            stored_filename=row["stored_filename"],
+            file_size=row["file_size"] or 0,
+            extension=row["extension"] or "",
+            mime_type=row["mime_type"] or "application/octet-stream",
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+        )
+
+    @staticmethod
+    def _processing_status(value):
+        try:
+            return DocumentProcessingStatus(
+                value or DocumentProcessingStatus.NOT_PROCESSED
+            )
+        except ValueError:
+            return value

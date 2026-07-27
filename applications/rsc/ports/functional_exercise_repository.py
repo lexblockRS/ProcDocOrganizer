@@ -9,13 +9,17 @@ from applications.rsc.models import (
 
 
 class FunctionalExerciseRepository(Protocol):
-    """Operações necessárias ao caso de uso atual de exercício funcional."""
+    """Persistência de exercícios, em ordem de inserção."""
 
-    def save(self, exercise: FunctionalExercise) -> None: ...
+    def save(self, exercise: FunctionalExercise) -> None:
+        """Insere ou substitui pelo ID, preservando a posição original."""
+        ...
 
     def get_by_id(
         self,
         exercise_id: FunctionalExerciseId,
     ) -> FunctionalExercise | None: ...
 
-    def list_all(self) -> tuple[FunctionalExercise, ...]: ...
+    def list_all(self) -> tuple[FunctionalExercise, ...]:
+        """Retorna todos os exercícios em ordem de inserção."""
+        ...

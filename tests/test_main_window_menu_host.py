@@ -2,6 +2,7 @@ import ast
 import os
 from pathlib import Path
 import unittest
+from unittest.mock import Mock
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -206,6 +207,55 @@ class MainWindowMenuHostTests(unittest.TestCase):
                 ),
                 f"Dependência proibida na MainWindow: {forbidden}",
             )
+
+
+    def test_dashboard_shortcuts_forward_to_existing_actions(self):
+        mappings = (
+            ("documents", self.window.action_documents_workspace),
+            ("search", self.window.action_search_processed_text),
+            ("evidences", self.window.action_evidence_workspace),
+            ("import", self.window.action_import_documents),
+            (
+                "process",
+                self.window.action_process_pending_documents,
+            ),
+        )
+        for key, action in mappings:
+            action.setEnabled(True)
+            callback = Mock()
+            action.triggered.connect(callback)
+
+            self.window.home_view.shortcut_buttons[key].click()
+
+            with self.subTest(shortcut=key):
+                self.assertEqual(callback.call_count, 1)
+
+    def test_view_manager_tracks_navigation_without_recreating_views(self):
+        home = self.window.views["home"]
+        documents = self.window.views["documents"]
+
+        self.assertTrue(self.window.show_view("documents"))
+        self.assertIs(
+            self.window.view_manager.active_view(), documents
+        )
+        self.assertEqual(
+            self.window.view_manager.active_view_id(), "documents"
+        )
+        self.assertTrue(self.window.show_view("home"))
+        self.assertIs(self.window.views["home"], home)
+        self.assertEqual(self.window.stack.count(), len(self.window.views))
+
+    def test_statusbar_reflects_project_open_and_close(self):
+        project = Mock(project_name="Projeto")
+
+        self.window.set_project(project, [])
+        self.assertEqual(
+            self.window.status_message.text(), "Projeto: Projeto"
+        )
+        self.window.clear_project()
+        self.assertEqual(
+            self.window.status_message.text(), "Nenhum projeto aberto"
+        )
 
 
 if __name__ == "__main__":

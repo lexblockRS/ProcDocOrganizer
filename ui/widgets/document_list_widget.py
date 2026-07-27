@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QListWidget, QListWidgetItem, QStyle, QVBoxLayout,
 class DocumentListWidget(QWidget):
     document_selected = Signal(object)
     _STATUS_LABELS = {
+        "imported": "Importado",
         "processed": "Processado",
         "not_processed": "Não processado",
         "processing": "Em processamento",
@@ -33,14 +34,24 @@ class DocumentListWidget(QWidget):
             self.list_widget.clear()
             icon = self.style().standardIcon(QStyle.StandardPixmap.SP_FileIcon)
             for summary in catalog:
+                extension = summary.extension or "sem extensão"
                 kind = summary.document_type or "Tipo não informado"
-                pages = f"{summary.page_count} página{'s' if summary.page_count != 1 else ''}"
+                pages = (
+                    f"{summary.page_count} "
+                    f"página{'s' if summary.page_count != 1 else ''}"
+                )
+                size = self._format_size(summary.file_size)
                 status = self._STATUS_LABELS.get(
-                    summary.processing_status, summary.processing_status
+                    summary.status, summary.status
+                )
+                processing_status = self._STATUS_LABELS.get(
+                    summary.processing_status,
+                    summary.processing_status,
                 )
                 item = QListWidgetItem(
                     icon,
-                    f"{summary.name}\n{kind} • {pages} • {status}",
+                    f"{summary.name}\n{kind} • {pages} • {extension} • {size} • "
+                    f"{summary.imported_at} • {status} • {processing_status}",
                 )
                 item.setData(Qt.ItemDataRole.UserRole, summary.identity)
                 item.setToolTip(summary.name)
@@ -75,3 +86,11 @@ class DocumentListWidget(QWidget):
         self.document_selected.emit(
             current.data(Qt.ItemDataRole.UserRole) if current else None
         )
+
+    @staticmethod
+    def _format_size(size: int) -> str:
+        if size < 1024:
+            return f"{size} B"
+        if size < 1024 * 1024:
+            return f"{size / 1024:.1f} KB"
+        return f"{size / (1024 * 1024):.1f} MB"

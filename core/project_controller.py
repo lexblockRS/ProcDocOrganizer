@@ -13,12 +13,26 @@ from PySide6.QtWidgets import (
 
 from ui.dialogs import NewProjectDialog
 from ui.contribution_installer import DesktopContributionInstaller
-from controllers import DocumentsController, EvidenceController, SearchController
+from controllers import (
+    DocumentsController,
+    EvidenceController,
+    SearchController,
+)
+from presentation.dashboard import DashboardController
+from presentation.activities import ActivitiesController
+from presentation.functional_assignments import (
+    FunctionalAssignmentsController,
+)
+from presentation.functional_exercises import FunctionalExercisesController
 
-from services import DocumentImporter
+from models import DocumentProcessingStatus
 from services.processing import DocumentProcessor
 
 from .project_session_factory import ProjectSessionFactory
+from .application_lifecycle_host import ApplicationLifecycleHost
+
+
+_APPLICATION_LIFECYCLE_HOST = ApplicationLifecycleHost()
 
 
 class ProjectController:
@@ -49,6 +63,33 @@ class ProjectController:
         self.session = None
         self.selected_document = None
         self.document_processor = DocumentProcessor()
+        self.dashboard_controller = DashboardController(
+            self.window.views["home"]
+        )
+        self.activities_controller = ActivitiesController(
+            self.window.views["activities"],
+            parent=self.window,
+            assignment_navigation_requested=(
+                self._navigate_to_functional_assignment
+            ),
+            exercise_navigation_requested=(
+                self._navigate_to_functional_exercise
+            ),
+        )
+        self.functional_assignments_controller = (
+            FunctionalAssignmentsController(
+                self.window.views["functional_assignments"],
+                parent=self.window,
+                evidence_navigation_requested=self._navigate_to_evidence,
+            )
+        )
+        self.functional_exercises_controller = FunctionalExercisesController(
+            self.window.views["functional_exercises"],
+            parent=self.window,
+            assignment_navigation_requested=(
+                self._navigate_to_functional_assignment
+            ),
+        )
         self.search_controller = SearchController(
             self.window.search_workspace,
             document_navigation_requested=self._navigate_from_search,
@@ -56,6 +97,7 @@ class ProjectController:
         self.documents_controller = DocumentsController(
             self.window.documents_workspace,
             evidence_source_requested=self._create_evidence_from_documents,
+            document_remove_requested=self._remove_document,
         )
         self.evidence_controller = EvidenceController(
             self.window.evidence_workspace,
@@ -108,6 +150,27 @@ class ProjectController:
         self.window.action_evidence_workspace.triggered.connect(
             self.show_evidences
         )
+        self.window.action_activities.triggered.connect(
+            self.show_activities
+        )
+        self.window.action_functional_assignments.triggered.connect(
+            self.show_functional_assignments
+        )
+        self.window.action_functional_exercises.triggered.connect(
+            self.show_functional_exercises
+        )
+        self.window.functional_assignments_view.create_exercise_requested.connect(
+            self.create_functional_exercise
+        )
+        self.window.functional_exercises_view.create_activity_requested.connect(
+            self.create_activity
+        )
+        self.window.functional_assignments_view.create_activity_requested.connect(
+            self.create_activity_from_assignments
+        )
+        self.window.evidence_workspace.interpret_functionally_requested.connect(
+            self.interpret_selected_evidence
+        )
         self.window.action_new_evidence.triggered.connect(
             self.new_evidence
         )
@@ -127,6 +190,7 @@ class ProjectController:
         Inicializa um projeto na aplicação.
         """
 
+        previous_session = self.session
         session = self.session_factory.create(project)
         application = getattr(session, "application", None)
         contributions = (
@@ -141,6 +205,11 @@ class ProjectController:
             self.contribution_installer.replace(contributions)
 
         self.session = session
+        self.document_processor = getattr(
+            session,
+            "document_processor",
+            getattr(self, "document_processor", None),
+        )
         self.state.open_project(project)
         self.selected_document = None
         self.search_controller.set_search_service(session.search_service)
@@ -152,6 +221,56 @@ class ProjectController:
         )
         self.documents_controller.set_service(session.document_service)
         self.documents_controller.load()
+        dashboard_controller = getattr(
+            self, "dashboard_controller", None
+        )
+        if dashboard_controller is not None:
+            dashboard_controller.set_session(session)
+        activities_controller = getattr(
+            self, "activities_controller", None
+        )
+        if activities_controller is not None:
+            activities_controller.set_session(session)
+        functional_controller = getattr(
+            self, "functional_assignments_controller", None
+        )
+        if functional_controller is not None:
+            functional_controller.set_session(session)
+        exercise_controller = getattr(
+            self, "functional_exercises_controller", None
+        )
+        if exercise_controller is not None:
+            exercise_controller.set_session(session)
+        is_rsc = getattr(session, "rsc_session", None) is not None
+        evidence_workspace = getattr(
+            self.window, "evidence_workspace", None
+        )
+        if evidence_workspace is not None:
+            evidence_workspace.set_functional_interpretation_available(
+                is_rsc
+            )
+        assignments_action = getattr(
+            self.window, "action_functional_assignments", None
+        )
+        if assignments_action is not None:
+            assignments_action.setVisible(is_rsc)
+            assignments_action.setEnabled(is_rsc)
+        exercises_action = getattr(
+            self.window, "action_functional_exercises", None
+        )
+        if exercises_action is not None:
+            exercises_action.setVisible(is_rsc)
+            exercises_action.setEnabled(is_rsc)
+        activities_action = getattr(
+            self.window, "action_activities", None
+        )
+        if activities_action is not None:
+            activities_action.setEnabled(
+                getattr(session, "rsc_session", None) is not None
+            )
+        _APPLICATION_LIFECYCLE_HOST.activate_session(session)
+        if previous_session is not None:
+            _APPLICATION_LIFECYCLE_HOST.dispose_session(previous_session)
 
     def new_project(self):
         """
@@ -161,14 +280,14 @@ class ProjectController:
         if not self.evidence_controller.can_leave():
             return
 
-        applications = (
-            self.application_registry.applications
+        descriptors = (
+            self.application_registry.descriptors
             if self.application_registry is not None
             else ()
         )
         dialog = NewProjectDialog(
             self.window,
-            applications=applications,
+            descriptors=descriptors,
         )
 
         if dialog.exec() != QDialog.DialogCode.Accepted:
@@ -275,41 +394,17 @@ class ProjectController:
         if not files:
             return
 
-        importer = DocumentImporter(self.state.current_project)
-        documents = []
-        added_documents = []
-
         try:
-
-            documents = importer.import_files(files)
-
-            for document in documents:
-                self.session.document_repository.add(document)
-                added_documents.append(document)
-
-            self.session.document_repository.save()
+            results = tuple(
+                self.session.document_import_service.import_file(path)
+                for path in files
+            )
 
         except Exception as exc:
-
-            error_message = str(exc)
-
-            try:
-                for document in added_documents:
-                    self.session.document_repository.remove(document)
-
-                importer.remove_imported_files(documents)
-
-            except Exception as cleanup_exc:
-                error_message = (
-                    f"{error_message}\n\n"
-                    "Também não foi possível concluir a limpeza da "
-                    f"importação: {cleanup_exc}"
-                )
-
             QMessageBox.critical(
                 self.window,
                 "Erro",
-                error_message,
+                str(exc),
             )
 
             return
@@ -318,12 +413,53 @@ class ProjectController:
             self.state.current_project,
             self.session.document_repository.list_documents(),
         )
+        self._refresh_dashboard()
 
+        stored_only = sum(
+            not self.document_processor.parser_registry.supports(
+                self.state.current_project.project_path
+                / item.document.relative_path
+            )
+            for item in results
+        )
+        format_message = (
+            f"\n{stored_only} arquivo(s) foi/foram armazenado(s), "
+            "mas o processamento textual atual aceita somente PDF."
+            if stored_only
+            else ""
+        )
         QMessageBox.information(
             self.window,
             "Importação concluída",
-            f"{len(documents)} documento(s) importado(s) com sucesso.",
+            f"{sum(not item.is_duplicate for item in results)} "
+            "documento(s) importado(s); "
+            f"{sum(item.is_duplicate for item in results)} duplicado(s)."
+            + format_message,
         )
+
+    def _remove_document(self, document_identity) -> bool:
+        document = self.session.document_repository.find_by_hash(
+            document_identity
+        )
+        if document is None:
+            return False
+        answer = QMessageBox.question(
+            self.window,
+            "Remover documento",
+            f"Remover '{document.original_filename}' do acervo?",
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return False
+        if not self.session.document_import_service.remove(document.id):
+            return False
+        self.documents_controller.refresh()
+        self.window.set_project(
+            self.state.current_project,
+            self.session.document_repository.list_documents(),
+        )
+        self.window.show_documents()
+        self._refresh_dashboard()
+        return True
 
     # ------------------------------------------------------------------
 
@@ -403,6 +539,110 @@ class ProjectController:
         self.evidence_controller.load()
         self.window.show_evidences()
 
+    def show_activities(self):
+        if not self.state.has_project:
+            QMessageBox.information(
+                self.window,
+                "Nenhum projeto",
+                "Abra um projeto RSC antes de consultar atividades.",
+            )
+            return
+        if getattr(self.session, "rsc_session", None) is None:
+            QMessageBox.information(
+                self.window,
+                "Atividades indisponíveis",
+                "O projeto atual não utiliza o módulo RSC.",
+            )
+            return
+        if not self.evidence_controller.can_leave():
+            return
+        self.activities_controller.refresh()
+        self.window.show_activities()
+
+    def show_functional_assignments(self):
+        if (
+            not self.state.has_project
+            or getattr(self.session, "rsc_session", None) is None
+        ):
+            return
+        self.functional_assignments_controller.refresh()
+        self.window.show_functional_assignments()
+
+    def show_functional_exercises(self):
+        if (
+            not self.state.has_project
+            or getattr(self.session, "rsc_session", None) is None
+        ):
+            return
+        self.functional_exercises_controller.refresh()
+        self.window.show_functional_exercises()
+
+    def create_functional_exercise(self):
+        identifiers = (
+            self.window.functional_assignments_view
+            .selected_assignment_ids()
+        )
+        if not self.functional_exercises_controller.create(identifiers):
+            return False
+        self.window.show_functional_exercises()
+        self._refresh_dashboard()
+        return True
+
+    def create_activity(self):
+        identifiers = (
+            self.window.functional_exercises_view.selected_exercise_ids()
+        )
+        if not self.activities_controller.create(identifiers):
+            return False
+        self.window.show_activities()
+        self._refresh_dashboard()
+        return True
+
+    def create_activity_from_assignments(self):
+        identifiers = (
+            self.window.functional_assignments_view
+            .selected_assignment_ids()
+        )
+        if not self.activities_controller.create(
+            assignment_ids=identifiers
+        ):
+            return False
+        self.window.show_activities()
+        self._refresh_dashboard()
+        return True
+
+    def _navigate_to_functional_assignment(self, assignment_id):
+        if not self.functional_assignments_controller.select(assignment_id):
+            return False
+        self.window.show_functional_assignments()
+        return True
+
+    def _navigate_to_functional_exercise(self, exercise_id):
+        if not self.functional_exercises_controller.select(exercise_id):
+            return False
+        self.window.show_functional_exercises()
+        return True
+
+    def interpret_selected_evidence(self):
+        evidence = self.evidence_controller.selected_evidence
+        if evidence is None:
+            return False
+        if not self.functional_assignments_controller.create_from_evidence(
+            evidence
+        ):
+            return False
+        self.window.show_functional_assignments()
+        self._refresh_dashboard()
+        return True
+
+    def _navigate_to_evidence(self, evidence_id):
+        if not self.evidence_controller.load():
+            return False
+        if not self.evidence_controller.select(evidence_id):
+            return False
+        self.window.show_evidences()
+        return True
+
     def new_evidence(self):
         if not self.state.has_project:
             self.show_evidences()
@@ -436,10 +676,13 @@ class ProjectController:
     def close_project(self):
         if not self.state.has_project:
             self.contribution_installer.clear()
+            _APPLICATION_LIFECYCLE_HOST.dispose_session(self.session)
+            self.session = None
             return
         if not self.evidence_controller.can_leave():
             return
         self.contribution_installer.clear()
+        _APPLICATION_LIFECYCLE_HOST.dispose_session(self.session)
         self.evidence_controller.set_service(None)
         self.documents_controller.set_service(None)
         self.search_controller.set_search_service(None)
@@ -447,6 +690,44 @@ class ProjectController:
         self.selected_document = None
         self.state.close_project()
         self.window.clear_project()
+        dashboard_controller = getattr(
+            self, "dashboard_controller", None
+        )
+        if dashboard_controller is not None:
+            dashboard_controller.clear_session()
+        activities_controller = getattr(
+            self, "activities_controller", None
+        )
+        if activities_controller is not None:
+            activities_controller.clear_session()
+        functional_controller = getattr(
+            self, "functional_assignments_controller", None
+        )
+        if functional_controller is not None:
+            functional_controller.clear_session()
+        exercise_controller = getattr(
+            self, "functional_exercises_controller", None
+        )
+        if exercise_controller is not None:
+            exercise_controller.clear_session()
+        evidence_workspace = getattr(
+            self.window, "evidence_workspace", None
+        )
+        if evidence_workspace is not None:
+            evidence_workspace.set_functional_interpretation_available(False)
+        assignments_action = getattr(
+            self.window, "action_functional_assignments", None
+        )
+        if assignments_action is not None:
+            assignments_action.setVisible(False)
+            assignments_action.setEnabled(False)
+        exercises_action = getattr(
+            self.window, "action_functional_exercises", None
+        )
+        if exercises_action is not None:
+            exercises_action.setVisible(False)
+            exercises_action.setEnabled(False)
+
 
     def _confirm_unsaved_evidence(self):
         answer = QMessageBox.warning(
@@ -486,6 +767,8 @@ class ProjectController:
 
     def _show_evidence_message(self, kind, message):
         self.window.evidence_workspace.show_message(message)
+        if kind == "success":
+            self._refresh_dashboard()
         if kind == "error":
             QMessageBox.warning(self.window, "Evidências", message)
 
@@ -498,7 +781,7 @@ class ProjectController:
         document = self.selected_document
         selected_path = document.relative_path
         selected_page = self.window.pdf_view.current_page()
-        if document.processing_status == "processing":
+        if document.processing_status == DocumentProcessingStatus.PROCESSING:
             QMessageBox.information(
                 self.window,
                 "Documento em processamento",
@@ -507,13 +790,14 @@ class ProjectController:
             return
 
         try:
-            self._process_document(document)
+            result = self._process_document(document)
 
         except Exception as exc:
             error_message = self._record_processing_failure(
                 document,
                 exc,
             )
+            self._refresh_dashboard()
 
             QMessageBox.critical(
                 self.window,
@@ -526,13 +810,16 @@ class ProjectController:
             selected_path,
             selected_page,
         )
+        self._refresh_dashboard()
 
-        if document.processing_status == "processed":
+        if document.processing_status == DocumentProcessingStatus.PROCESSED:
             message = "O texto nativo do documento foi processado."
-        elif document.processing_status == "ocr_required":
+        elif document.processing_status == DocumentProcessingStatus.OCR_REQUIRED:
             message = "Documento sem texto pesquisável. OCR necessário."
         else:
             message = "Não foi possível processar o documento."
+            if result.error:
+                message += f"\n\n{result.error}"
 
         QMessageBox.information(
             self.window,
@@ -688,9 +975,15 @@ class ProjectController:
                 self._record_processing_failure(document, exc)
                 failed += 1
             else:
-                if document.processing_status == "processed":
+                if (
+                    document.processing_status
+                    == DocumentProcessingStatus.PROCESSED
+                ):
                     completed += 1
-                elif document.processing_status == "ocr_required":
+                elif (
+                    document.processing_status
+                    == DocumentProcessingStatus.OCR_REQUIRED
+                ):
                     ocr_required += 1
                 else:
                     failed += 1
@@ -717,11 +1010,11 @@ class ProjectController:
         Processa e persiste o estado de um único documento.
         """
 
-        document.processing_status = "pending"
+        document.processing_status = DocumentProcessingStatus.PENDING
         self.session.document_repository.update(document)
         self.session.document_repository.save()
 
-        document.processing_status = "processing"
+        document.processing_status = DocumentProcessingStatus.PROCESSING
         self.session.document_repository.update(document)
         self.session.document_repository.save()
 
@@ -733,6 +1026,7 @@ class ProjectController:
         self._apply_processing_result(document, result)
         self.session.document_repository.update(document)
         self.session.document_repository.save()
+        return result
 
     # ------------------------------------------------------------------
 
@@ -764,7 +1058,7 @@ class ProjectController:
         """
 
         document.processed_at = document.now()
-        document.processing_status = "failed"
+        document.processing_status = DocumentProcessingStatus.FAILED
         error_message = str(exc)
 
         try:
@@ -787,7 +1081,7 @@ class ProjectController:
         """
 
         for document in documents:
-            document.processing_status = "cancelled"
+            document.processing_status = DocumentProcessingStatus.CANCELLED
             self.session.document_repository.update(document)
 
         self.session.document_repository.save()
@@ -803,6 +1097,7 @@ class ProjectController:
             self.state.current_project,
             self.session.document_repository.list_documents(),
         )
+        self._refresh_dashboard()
         if self.selected_document is None:
             return
 
@@ -841,3 +1136,11 @@ class ProjectController:
 
         if page > 0 and self.window.pdf_view.current_page() != page:
             self.window.pdf_view.show_page(page)
+
+    def _refresh_dashboard(self) -> bool:
+        dashboard_controller = getattr(
+            self, "dashboard_controller", None
+        )
+        if dashboard_controller is None:
+            return False
+        return dashboard_controller.refresh()

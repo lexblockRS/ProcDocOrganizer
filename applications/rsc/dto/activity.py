@@ -10,3 +10,5 @@ class ActivityDTO:
     activity_id: str
     description: str
     state: str
+    functional_assignment_evidence_ids: tuple[str, ...] = ()
+    functional_exercise_ids: tuple[str, ...] = ()

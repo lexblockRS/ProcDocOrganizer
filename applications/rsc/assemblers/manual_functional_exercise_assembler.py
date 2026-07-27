@@ -5,6 +5,7 @@ from uuid import uuid4
 from applications.rsc.commands import CreateFunctionalExerciseCommand
 from applications.rsc.models import (
     FunctionalContext,
+    FunctionalAssignmentEvidenceId,
     FunctionalExercise,
     FunctionalExerciseId,
     FunctionalExerciseStatus,
@@ -50,4 +51,9 @@ class ManualFunctionalExerciseAssembler:
             ),
             period=period,
             status=status,
+            functional_assignment_evidence_ids=tuple(
+                FunctionalAssignmentEvidenceId.from_string(evidence_id)
+                for evidence_id
+                in command.functional_assignment_evidence_ids
+            ),
         )
