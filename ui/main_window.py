@@ -7,8 +7,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction
+from PySide6.QtGui import QAction, QActionGroup
 from PySide6.QtWidgets import (
+    QComboBox,
     QLabel,
     QDockWidget,
     QMainWindow,
@@ -32,17 +33,14 @@ from presentation import (
     OperationExecutor,
     PerspectiveDefinition,
     PerspectiveId,
+    PerspectiveSnapshot,
     PerspectiveStore,
     SelectionStore,
     WorkspaceSnapshot,
     WorkspaceStore,
     PresentationContextStore,
 )
-from ui.views.documents_view import DocumentsView
-from ui.views.evidence_workspace import EvidenceWorkspace
-from ui.views.home_view import HomeView
-from ui.views.pdf_view import PdfView
-from ui.views.search_workspace import SearchWorkspace
+from ui.builtin_perspectives import create_builtin_perspective_views
 from ui.main_window_contributions import (
     WindowActionSpec,
     WindowToolbarSpec,
@@ -236,6 +234,10 @@ class MainWindow(QMainWindow):
 
         help_menu.addAction(self.action_about)
 
+        view_menu = menu.addMenu("Exibir")
+        self._base_menus_by_id["view"] = view_menu
+        self.perspectives_menu = view_menu.addMenu("Perspectivas")
+
     # ------------------------------------------------------------------
 
     def get_menu(self, menu_id: str) -> QMenu:
@@ -333,6 +335,11 @@ class MainWindow(QMainWindow):
             self.action_search_processed_text
         )
         toolbar.addAction(self.action_evidence_workspace)
+        toolbar.addSeparator()
+        self.perspective_selector = QComboBox(toolbar)
+        self.perspective_selector.setObjectName("perspectiveSelector")
+        self.perspective_selector.setToolTip("Perspectiva ativa")
+        toolbar.addWidget(self.perspective_selector)
         self.addToolBar(toolbar)
 
     # ------------------------------------------------------------------
@@ -343,50 +350,31 @@ class MainWindow(QMainWindow):
         self.stack = self.workspace_host
         self.view_manager = ViewManager(self.stack)
 
-        home_view = HomeView(self.contribution_manager)
-        pdf_view = PdfView()
-        search_workspace = SearchWorkspace()
-        evidence_workspace = EvidenceWorkspace()
-        documents_workspace = DocumentsView()
-        for view_id, view in (
-            ("home", home_view),
-            ("pdf", pdf_view),
-            ("search", search_workspace),
-            ("evidence", evidence_workspace),
-            ("documents", documents_workspace),
-        ):
+        builtin_views = create_builtin_perspective_views(
+            self.contribution_manager,
+            {
+                "new_project": self.action_new_project.trigger,
+                "open_project": self.action_open_project.trigger,
+                "documents": self.action_documents_workspace.trigger,
+                "search": self.action_search_processed_text.trigger,
+                "evidence": self.action_evidence_workspace.trigger,
+                "import_documents": self.action_import_documents.trigger,
+                "process_documents": (
+                    self.action_process_pending_documents.trigger
+                ),
+            },
+        )
+        for view_id, view in builtin_views.items():
             self.view_manager.register(view_id, view)
         self.views = self.view_manager.views
-        self.pdf_view = pdf_view
-        self.search_workspace = search_workspace
-        self.evidence_workspace = evidence_workspace
-        self.documents_workspace = documents_workspace
-        self.home_view = home_view
-
-        home_view.new_project_requested.connect(
-            self.action_new_project.trigger
-        )
-        home_view.open_project_requested.connect(
-            self.action_open_project.trigger
-        )
-        home_view.documents_requested.connect(
-            self.action_documents_workspace.trigger
-        )
-        home_view.search_requested.connect(
-            self.action_search_processed_text.trigger
-        )
-        home_view.evidences_requested.connect(
-            self.action_evidence_workspace.trigger
-        )
-        home_view.import_documents_requested.connect(
-            self.action_import_documents.trigger
-        )
-        home_view.process_documents_requested.connect(
-            self.action_process_pending_documents.trigger
-        )
-        documents_workspace.import_requested.connect(
-            self.action_import_documents.trigger
-        )
+        for view_id, attribute_name in (
+            ("pdf", "pdf_view"),
+            ("search", "search_workspace"),
+            ("evidence", "evidence_workspace"),
+            ("documents", "documents_workspace"),
+            ("home", "home_view"),
+        ):
+            setattr(self, attribute_name, builtin_views[view_id])
 
         self.project_tree = ProjectTreeWidget()
         self.project_tree.setMinimumWidth(180)
@@ -540,6 +528,8 @@ class MainWindow(QMainWindow):
             "search": "Pesquisa",
             "evidence": "Evidências",
             "documents": "Documentos",
+            "timeline": "Timeline",
+            "reports": "Relatórios",
         }
         for order, (view_id, view) in enumerate(
             self.views.items(), start=1
@@ -566,15 +556,77 @@ class MainWindow(QMainWindow):
                 self.workspace_store.subscribe(
                     self._on_workspace_changed
                 ),
+                self.perspective_store.subscribe(
+                    self._on_perspectives_changed
+                ),
                 self.notification_center.subscribe(
                     self._on_notification
                 ),
             )
         )
+        self._install_perspective_navigation()
         self._on_application_state_changed(
             self.application_state_store.snapshot
         )
         self.navigation_controller.navigate_to(PerspectiveId("home"))
+
+    def _install_perspective_navigation(self) -> None:
+        self._perspective_action_group = QActionGroup(self)
+        self._perspective_action_group.setExclusive(True)
+        self.perspective_selector.currentIndexChanged.connect(
+            self._navigate_from_perspective_selector
+        )
+        self._on_perspectives_changed(self.perspective_store.snapshot)
+
+    def _on_perspectives_changed(
+        self, snapshot: PerspectiveSnapshot
+    ) -> None:
+        self.perspectives_menu.clear()
+        for action in self._perspective_action_group.actions():
+            self._perspective_action_group.removeAction(action)
+            action.deleteLater()
+        self.perspective_selector.blockSignals(True)
+        self.perspective_selector.clear()
+        application = self.application_state_store.snapshot
+        is_available = application.state not in (
+            ApplicationState.BUSY,
+            ApplicationState.CLOSING,
+        )
+        for definition in snapshot.available:
+            action = QAction(definition.title, self)
+            action.setCheckable(True)
+            action.setData(definition.id.value)
+            action.setChecked(definition.id == snapshot.active)
+            action.setEnabled(
+                is_available
+                and (
+                    application.has_project
+                    or not definition.requires_project
+                )
+            )
+            action.triggered.connect(
+                lambda _checked=False, perspective_id=definition.id: (
+                    self.navigation_controller.navigate_to(perspective_id)
+                )
+            )
+            self._perspective_action_group.addAction(action)
+            self.perspectives_menu.addAction(action)
+            self.perspective_selector.addItem(
+                definition.title,
+                definition.id.value,
+            )
+            index = self.perspective_selector.count() - 1
+            self.perspective_selector.model().item(index).setEnabled(
+                action.isEnabled()
+            )
+            if definition.id == snapshot.active:
+                self.perspective_selector.setCurrentIndex(index)
+        self.perspective_selector.blockSignals(False)
+
+    def _navigate_from_perspective_selector(self, index: int) -> None:
+        value = self.perspective_selector.itemData(index)
+        if value is not None:
+            self.navigation_controller.navigate_to(PerspectiveId(value))
 
     def _on_application_state_changed(
         self, snapshot: ApplicationStateSnapshot
@@ -584,6 +636,15 @@ class MainWindow(QMainWindow):
             ApplicationState.BUSY,
             ApplicationState.CLOSING,
         )
+        self.setWindowTitle(
+            (
+                f"ProcDocOrganizer — {snapshot.project_id}"
+                if has_project and snapshot.project_id is not None
+                else "ProcDocOrganizer"
+            )
+        )
+        self.action_new_project.setEnabled(is_available)
+        self.action_open_project.setEnabled(is_available)
         self.action_close_project.setEnabled(has_project and is_available)
         self.action_documents_workspace.setEnabled(
             has_project and is_available
@@ -592,6 +653,20 @@ class MainWindow(QMainWindow):
             has_project and is_available
         )
         self.action_new_evidence.setEnabled(has_project and is_available)
+        for definition, action in zip(
+            self.perspective_store.list_all(),
+            self._perspective_action_group.actions(),
+            strict=True,
+        ):
+            enabled = (
+                is_available
+                and (has_project or not definition.requires_project)
+            )
+            action.setEnabled(enabled)
+            index = self.perspective_selector.findData(
+                definition.id.value
+            )
+            self.perspective_selector.model().item(index).setEnabled(enabled)
 
         if snapshot.state is ApplicationState.BUSY:
             self.status_message.setText("Operação em andamento")
@@ -620,6 +695,17 @@ class MainWindow(QMainWindow):
                 "factory da perspectiva deve retornar QWidget."
             )
         self.workspace_host.set_active_widget(widget)
+        for action in self._perspective_action_group.actions():
+            action.setChecked(
+                action.data() == snapshot.active_perspective.value
+            )
+        index = self.perspective_selector.findData(
+            snapshot.active_perspective.value
+        )
+        if index >= 0:
+            self.perspective_selector.blockSignals(True)
+            self.perspective_selector.setCurrentIndex(index)
+            self.perspective_selector.blockSignals(False)
 
     def _on_notification(self, notification: Notification) -> None:
         timeout = (

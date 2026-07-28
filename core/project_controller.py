@@ -24,6 +24,13 @@ from presentation.functional_assignments import (
     FunctionalAssignmentsController,
 )
 from presentation.functional_exercises import FunctionalExercisesController
+from presentation import (
+    ApplicationState,
+    Notification,
+    NotificationLevel,
+    OperationId,
+    PerspectiveId,
+)
 
 from models import DocumentProcessingStatus
 from services.processing import DocumentProcessor
@@ -272,6 +279,81 @@ class ProjectController:
         if previous_session is not None:
             _APPLICATION_LIFECYCLE_HOST.dispose_session(previous_session)
 
+    def _execute_lifecycle_operation(self, operation_id, work):
+        executor = getattr(self.window, "operation_executor", None)
+        if executor is None:
+            return work()
+        application_state = self.window.application_state_store
+        snapshot = application_state.snapshot
+        if snapshot.state is ApplicationState.ERROR:
+            target = snapshot.previous_state or ApplicationState.NO_PROJECT
+            application_state.transition_to(
+                target,
+                project_id=snapshot.project_id,
+            )
+        return executor.execute(
+            OperationId(operation_id),
+            lambda _context: work(),
+        )
+
+    def _publish_project_notification(
+        self,
+        level,
+        title,
+        message,
+    ) -> bool:
+        center = getattr(self.window, "notification_center", None)
+        if center is None:
+            return False
+        center.publish(Notification(level, title, message))
+        return True
+
+    def _complete_project_open(self, project, message) -> None:
+        application_state = getattr(
+            self.window, "application_state_store", None
+        )
+        if application_state is not None:
+            if application_state.snapshot.has_project:
+                application_state.transition_to(
+                    ApplicationState.NO_PROJECT
+                )
+            application_state.transition_to(
+                ApplicationState.PROJECT_OPEN,
+                project_id=project.project_name,
+            )
+        navigation = getattr(
+            self.window, "navigation_controller", None
+        )
+        if navigation is not None:
+            navigation.navigate_to(PerspectiveId("home"))
+        self._publish_project_notification(
+            NotificationLevel.SUCCESS,
+            "Projeto",
+            message,
+        )
+
+    def _complete_project_close(self) -> None:
+        workspace = getattr(self.window, "workspace_store", None)
+        if workspace is not None:
+            workspace.clear()
+        selection = getattr(self.window, "selection_store", None)
+        if selection is not None:
+            selection.clear()
+        application_state = getattr(
+            self.window, "application_state_store", None
+        )
+        if (
+            application_state is not None
+            and application_state.snapshot.state
+            is not ApplicationState.NO_PROJECT
+        ):
+            application_state.transition_to(ApplicationState.NO_PROJECT)
+        self._publish_project_notification(
+            NotificationLevel.INFO,
+            "Projeto",
+            "Projeto fechado.",
+        )
+
     def new_project(self):
         """
         Cria um novo projeto.
@@ -295,30 +377,49 @@ class ProjectController:
 
         try:
 
-            project = self.manager.create_project(
-                dialog.get_project_name(),
-                dialog.get_project_folder(),
-                application_id=dialog.get_application_id(),
+            def create_and_load():
+                project = self.manager.create_project(
+                    dialog.get_project_name(),
+                    dialog.get_project_folder(),
+                    application_id=dialog.get_application_id(),
+                )
+                self._load_project(project)
+                return project
+
+            project = self._execute_lifecycle_operation(
+                "project-create",
+                create_and_load,
             )
-            self._load_project(project)
+            self._complete_project_open(project, "Projeto criado.")
 
         except FileExistsError as exc:
 
-            QMessageBox.warning(
-                self.window,
+            if not self._publish_project_notification(
+                NotificationLevel.WARNING,
                 "Projeto já existe",
                 str(exc),
-            )
+            ):
+                QMessageBox.warning(
+                    self.window,
+                    "Projeto já existe",
+                    str(exc),
+                )
 
             return
 
         except Exception as exc:
 
-            QMessageBox.critical(
-                self.window,
-                "Erro",
-                f"Não foi possível criar o projeto.\n\n{exc}",
-            )
+            message = f"Não foi possível criar o projeto: {exc}"
+            if not self._publish_project_notification(
+                NotificationLevel.ERROR,
+                "Erro ao criar",
+                message,
+            ):
+                QMessageBox.critical(
+                    self.window,
+                    "Erro",
+                    f"Não foi possível criar o projeto.\n\n{exc}",
+                )
 
             return
 
@@ -342,28 +443,45 @@ class ProjectController:
 
         try:
 
-            project = self.manager.open_project(
-                Path(folder)
+            def open_and_load():
+                project = self.manager.open_project(Path(folder))
+                self._load_project(project)
+                return project
+
+            project = self._execute_lifecycle_operation(
+                "project-open",
+                open_and_load,
             )
-            self._load_project(project)
+            self._complete_project_open(project, "Projeto aberto.")
 
         except FileNotFoundError as exc:
 
-            QMessageBox.warning(
-                self.window,
+            if not self._publish_project_notification(
+                NotificationLevel.WARNING,
                 "Projeto inválido",
                 str(exc),
-            )
+            ):
+                QMessageBox.warning(
+                    self.window,
+                    "Projeto inválido",
+                    str(exc),
+                )
 
             return
 
         except Exception as exc:
 
-            QMessageBox.critical(
-                self.window,
-                "Erro",
-                f"Não foi possível abrir o projeto.\n\n{exc}",
-            )
+            message = f"Não foi possível abrir o projeto: {exc}"
+            if not self._publish_project_notification(
+                NotificationLevel.ERROR,
+                "Erro ao abrir",
+                message,
+            ):
+                QMessageBox.critical(
+                    self.window,
+                    "Erro",
+                    f"Não foi possível abrir o projeto.\n\n{exc}",
+                )
 
             return
 
@@ -681,6 +799,24 @@ class ProjectController:
             return
         if not self.evidence_controller.can_leave():
             return
+
+        try:
+            self._execute_lifecycle_operation(
+                "project-close",
+                self._close_active_project,
+            )
+        except Exception as exc:
+            published = self._publish_project_notification(
+                NotificationLevel.ERROR,
+                "Erro ao fechar",
+                f"Não foi possível fechar o projeto: {exc}",
+            )
+            if not published:
+                raise
+            return
+        self._complete_project_close()
+
+    def _close_active_project(self):
         self.contribution_installer.clear()
         _APPLICATION_LIFECYCLE_HOST.dispose_session(self.session)
         self.evidence_controller.set_service(None)
