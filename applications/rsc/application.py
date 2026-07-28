@@ -46,6 +46,7 @@ class RscApplication:
             if repository_factory is not None
             else create_in_memory_rsc_repositories
         )
+        self._sessions: list[RscProjectSession] = []
 
     def can_open(self, project: Project) -> bool:
         return (
@@ -82,7 +83,11 @@ class RscApplication:
         """Preserva o hook de lifecycle sem efeitos nesta etapa."""
 
     def dispose(self) -> None:
-        """Preserva o hook de descarte sem recursos próprios persistentes."""
+        """Descarta o estado em memória criado por esta Application."""
+
+        for session in self._sessions:
+            session.dispose()
+        self._sessions.clear()
 
     def create_project_session(
         self,
@@ -96,7 +101,9 @@ class RscApplication:
             if database_path is not None
             else self._repository_factory()
         )
-        return create_rsc_project_session(
+        session = create_rsc_project_session(
             source_evidence_lookup,
             repositories,
         )
+        self._sessions.append(session)
+        return session

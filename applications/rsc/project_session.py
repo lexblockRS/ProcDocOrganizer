@@ -20,7 +20,13 @@ from applications.rsc.services import (
     FunctionalAssignmentNormalizer,
     ListFunctionalAssignmentEvidencesService,
     ListFunctionalExercisesService,
+    RscActivityService,
+    RscEvidenceService,
+    RscProcessService,
+    RscScoringService,
+    RscValidationService,
 )
+from applications.rsc.catalogs import OfficialRscCatalog
 
 @dataclass(frozen=True)
 class RscProjectSession:
@@ -47,3 +53,15 @@ class RscProjectSession:
         ListFunctionalAssignmentEvidencesService
     )
     list_functional_exercises_service: ListFunctionalExercisesService
+    official_catalog: OfficialRscCatalog
+    rsc_process_service: RscProcessService
+    rsc_activity_service: RscActivityService
+    rsc_evidence_service: RscEvidenceService
+    rsc_scoring_service: RscScoringService
+    rsc_validation_service: RscValidationService
+
+    def dispose(self) -> None:
+        """Libera exclusivamente o estado transitório mantido em memória."""
+
+        self.rsc_process_service.clear()
+        self.rsc_evidence_service.clear()

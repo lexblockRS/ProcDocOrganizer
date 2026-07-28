@@ -34,7 +34,13 @@ from applications.rsc.services import (
     FunctionalAssignmentNormalizer,
     ListFunctionalAssignmentEvidencesService,
     ListFunctionalExercisesService,
+    RscActivityService,
+    RscEvidenceService,
+    RscProcessService,
+    RscScoringService,
+    RscValidationService,
 )
+from applications.rsc.catalogs import OfficialRscCatalog
 
 from .project_session import RscProjectSession
 
@@ -99,6 +105,12 @@ def create_rsc_project_session(
     manual_assembler = ManualFunctionalExerciseAssembler()
     assignment_assembler = FunctionalAssignmentEvidenceAssembler()
     normalizer = FunctionalAssignmentNormalizer()
+    official_catalog = OfficialRscCatalog()
+    process_service = RscProcessService()
+    activity_service = RscActivityService(official_catalog)
+    evidence_service = RscEvidenceService()
+    validation_service = RscValidationService(official_catalog)
+    scoring_service = RscScoringService(official_catalog)
 
     return RscProjectSession(
         activity_repository=selected.activity,
@@ -137,4 +149,10 @@ def create_rsc_project_session(
         list_functional_exercises_service=ListFunctionalExercisesService(
             selected.functional_exercise
         ),
+        official_catalog=official_catalog,
+        rsc_process_service=process_service,
+        rsc_activity_service=activity_service,
+        rsc_evidence_service=evidence_service,
+        rsc_scoring_service=scoring_service,
+        rsc_validation_service=validation_service,
     )

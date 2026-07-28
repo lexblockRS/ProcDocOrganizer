@@ -22,6 +22,11 @@ from .list_functional_exercises_service import (
 from .list_functional_assignment_evidences_service import (
     ListFunctionalAssignmentEvidencesService,
 )
+from .activity_service import RscActivityService
+from .evidence_service import RscEvidenceService
+from .process_service import RscProcessService
+from .scoring_service import RscScoringService
+from .validation_service import RscValidationService
 
 __all__ = [
     "CreateActivityService",
@@ -35,5 +40,10 @@ __all__ = [
     "FunctionalAssignmentNormalizer",
     "ListFunctionalAssignmentEvidencesService",
     "ListFunctionalExercisesService",
+    "RscActivityService",
+    "RscEvidenceService",
+    "RscProcessService",
+    "RscScoringService",
+    "RscValidationService",
     "SourceEvidenceNotFoundError",
 ]
