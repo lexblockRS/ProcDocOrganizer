@@ -35,12 +35,35 @@ from applications.rsc.services import (
     ListFunctionalAssignmentEvidencesService,
     ListFunctionalExercisesService,
     RscActivityService,
+    RscDocumentService,
     RscEvidenceService,
     RscProcessService,
     RscScoringService,
     RscValidationService,
 )
 from applications.rsc.catalogs import OfficialRscCatalog
+from applications.rsc.use_cases import (
+    CalculateScoreUseCase,
+    CreateActivityUseCase,
+    CreateEvidenceUseCase,
+    CreateProcessUseCase,
+    GenerateSummaryUseCase,
+    GetActivityUseCase,
+    GetDocumentUseCase,
+    GetEvidenceUseCase,
+    GetProcessUseCase,
+    ListActivitiesByCriterionUseCase,
+    ListActivitiesByRequirementUseCase,
+    ListActivitiesUseCase,
+    ListDocumentsUseCase,
+    ListEvidenceByActivityUseCase,
+    ListEvidenceUseCase,
+    ListProcessesUseCase,
+    RegisterDocumentUseCase,
+    RemoveDocumentUseCase,
+    RscUseCaseRegistry,
+    ValidateProcessUseCase,
+)
 
 from .project_session import RscProjectSession
 
@@ -111,6 +134,79 @@ def create_rsc_project_session(
     evidence_service = RscEvidenceService()
     validation_service = RscValidationService(official_catalog)
     scoring_service = RscScoringService(official_catalog)
+    document_service = RscDocumentService()
+    use_cases = RscUseCaseRegistry()
+    use_cases.register(CreateProcessUseCase(process_service))
+    use_cases.register(RegisterDocumentUseCase(process_service, document_service))
+    use_cases.register(GetProcessUseCase(process_service))
+    use_cases.register(ListProcessesUseCase(process_service))
+    use_cases.register(GetDocumentUseCase(process_service, document_service))
+    use_cases.register(
+        ListDocumentsUseCase(process_service, document_service)
+    )
+    use_cases.register(RemoveDocumentUseCase(process_service, document_service))
+    use_cases.register(CreateActivityUseCase(process_service, activity_service))
+    use_cases.register(GetActivityUseCase(process_service, activity_service))
+    use_cases.register(
+        ListActivitiesUseCase(process_service, activity_service)
+    )
+    use_cases.register(
+        ListActivitiesByCriterionUseCase(
+            process_service, activity_service
+        )
+    )
+    use_cases.register(
+        ListActivitiesByRequirementUseCase(
+            process_service, activity_service
+        )
+    )
+    use_cases.register(
+        CreateEvidenceUseCase(
+            process_service,
+            activity_service,
+            document_service,
+            evidence_service,
+        )
+    )
+    use_cases.register(
+        GetEvidenceUseCase(
+            process_service,
+            activity_service,
+            document_service,
+            evidence_service,
+        )
+    )
+    use_cases.register(
+        ListEvidenceUseCase(
+            process_service,
+            activity_service,
+            document_service,
+            evidence_service,
+        )
+    )
+    use_cases.register(
+        ListEvidenceByActivityUseCase(
+            process_service,
+            activity_service,
+            document_service,
+            evidence_service,
+        )
+    )
+    use_cases.register(
+        ValidateProcessUseCase(
+            process_service,
+            document_service,
+            evidence_service,
+            validation_service,
+        )
+    )
+    use_cases.register(
+        CalculateScoreUseCase(
+            process_service,
+            scoring_service,
+        )
+    )
+    use_cases.register(GenerateSummaryUseCase(use_cases))
 
     return RscProjectSession(
         activity_repository=selected.activity,
@@ -152,7 +248,9 @@ def create_rsc_project_session(
         official_catalog=official_catalog,
         rsc_process_service=process_service,
         rsc_activity_service=activity_service,
+        rsc_document_service=document_service,
         rsc_evidence_service=evidence_service,
         rsc_scoring_service=scoring_service,
         rsc_validation_service=validation_service,
+        use_cases=use_cases,
     )

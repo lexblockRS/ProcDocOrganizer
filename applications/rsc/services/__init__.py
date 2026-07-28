@@ -23,6 +23,7 @@ from .list_functional_assignment_evidences_service import (
     ListFunctionalAssignmentEvidencesService,
 )
 from .activity_service import RscActivityService
+from .document_service import RscDocumentService
 from .evidence_service import RscEvidenceService
 from .process_service import RscProcessService
 from .scoring_service import RscScoringService
@@ -41,6 +42,7 @@ __all__ = [
     "ListFunctionalAssignmentEvidencesService",
     "ListFunctionalExercisesService",
     "RscActivityService",
+    "RscDocumentService",
     "RscEvidenceService",
     "RscProcessService",
     "RscScoringService",

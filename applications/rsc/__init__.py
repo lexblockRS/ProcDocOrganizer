@@ -2,5 +2,10 @@
 
 from .application import RscApplication
 from .project_session import RscProjectSession
+from .facade import RscApplicationFacade
 
-__all__ = ["RscApplication", "RscProjectSession"]
+__all__ = [
+    "RscApplication",
+    "RscApplicationFacade",
+    "RscProjectSession",
+]
