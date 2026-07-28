@@ -1,11 +1,8 @@
-"""Application RSC."""
+"""Superfície pública estável da Application RSC.
 
-from .application import RscApplication
-from .project_session import RscProjectSession
-from .facade import RscApplicationFacade
+Os imports históricos continuam disponíveis em seus módulos originais,
+mas novos consumidores devem usar este pacote ou ``applications.rsc.api``.
+"""
 
-__all__ = [
-    "RscApplication",
-    "RscApplicationFacade",
-    "RscProjectSession",
-]
+from .api import *  # noqa: F401,F403
+from .api import __all__

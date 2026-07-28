@@ -16,11 +16,15 @@ from applications.rsc.use_cases import (
     ListActivitiesUseCase,
     ListDocumentsUseCase,
     ListProcessesUseCase,
+    LoadProjectUseCase,
+    UpdateDocumentReferenceUseCase,
+    VerifyDocumentsUseCase,
     ListEvidenceByActivityUseCase,
     ListEvidenceUseCase,
     RegisterDocumentUseCase,
     RemoveDocumentUseCase,
     RscUseCaseRegistry,
+    SaveProjectUseCase,
     SessionDisposedError,
     ValidateProcessUseCase,
 )
@@ -59,6 +63,10 @@ class UseCaseSessionTests(unittest.TestCase):
             ValidateProcessUseCase,
             CalculateScoreUseCase,
             GenerateSummaryUseCase,
+            SaveProjectUseCase,
+            LoadProjectUseCase,
+            VerifyDocumentsUseCase,
+            UpdateDocumentReferenceUseCase,
         )
         self.assertEqual(len(first.use_cases), len(expected))
         for use_case_type in expected:

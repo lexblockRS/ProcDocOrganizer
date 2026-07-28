@@ -1,5 +1,7 @@
 """Contratos de infraestrutura da camada de casos de uso RSC."""
 
+__api_status__ = "internal"
+
 from .commands import (
     CalculateScoreCommand,
     CreateActivityCommand,
@@ -63,6 +65,20 @@ from .validation_scoring_use_cases import (
 )
 from .process_summary import ProcessSummary
 from .summary_use_case import GenerateSummaryUseCase
+from .persistence_use_cases import (
+    LoadProjectCommand,
+    LoadProjectResult,
+    LoadProjectUseCase,
+    SaveProjectCommand,
+    SaveProjectResult,
+    SaveProjectUseCase,
+)
+from .document_management_use_cases import (
+    UpdateDocumentReferenceCommand,
+    UpdateDocumentReferenceUseCase,
+    VerifyDocumentsCommand,
+    VerifyDocumentsUseCase,
+)
 from .results import (
     CreateActivityResult,
     CreateEvidenceResult,
@@ -132,6 +148,9 @@ __all__ = [
     "ListProcessesCommand",
     "ListProcessesResult",
     "ListProcessesUseCase",
+    "LoadProjectCommand",
+    "LoadProjectResult",
+    "LoadProjectUseCase",
     "ProcessNotFoundError",
     "ProcessSummary",
     "RegisterDocumentCommand",
@@ -142,10 +161,17 @@ __all__ = [
     "RemoveDocumentUseCase",
     "RscUseCaseError",
     "RscUseCaseRegistry",
+    "SaveProjectCommand",
+    "SaveProjectResult",
+    "SaveProjectUseCase",
     "ScoreUseCaseResult",
     "SessionDisposedError",
     "SummaryUseCaseResult",
     "ValidateProcessCommand",
     "ValidateProcessUseCase",
     "ValidationUseCaseResult",
+    "UpdateDocumentReferenceCommand",
+    "UpdateDocumentReferenceUseCase",
+    "VerifyDocumentsCommand",
+    "VerifyDocumentsUseCase",
 ]

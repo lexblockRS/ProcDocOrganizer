@@ -15,13 +15,29 @@ from PySide6.QtWidgets import (
     QMenu,
     QProgressDialog,
     QSplitter,
-    QStackedWidget,
     QStatusBar,
     QToolBar,
+    QWidget,
 )
 
 from contracts import ContributionCategory
 from core.contribution_manager import ContributionManager
+from presentation import (
+    ApplicationState,
+    ApplicationStateSnapshot,
+    ApplicationStateStore,
+    NavigationController,
+    Notification,
+    NotificationCenter,
+    OperationExecutor,
+    PerspectiveDefinition,
+    PerspectiveId,
+    PerspectiveStore,
+    SelectionStore,
+    WorkspaceSnapshot,
+    WorkspaceStore,
+    PresentationContextStore,
+)
 from ui.views.documents_view import DocumentsView
 from ui.views.evidence_workspace import EvidenceWorkspace
 from ui.views.home_view import HomeView
@@ -35,6 +51,7 @@ from ui.main_window_contributions import (
 )
 from ui.widgets import ProjectTreeWidget
 from ui.view_manager import ViewManager
+from ui.workspace_host import WorkspaceHost
 
 if TYPE_CHECKING:
     from models import Document, Project
@@ -59,9 +76,9 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("ProcDocOrganizer")
         self.resize(1400, 900)
 
-        self.project = None
         self._base_menus_by_id: dict[str, QMenu] = {}
         self._application_menus_by_id: dict[str, QMenu] = {}
+        self._create_presentation_components()
 
         self._create_actions()
         self._create_menu()
@@ -70,6 +87,28 @@ class MainWindow(QMainWindow):
         self._install_contributions()
         self._create_right_dock()
         self._create_statusbar()
+        self._install_presentation_integration()
+
+    def _create_presentation_components(self) -> None:
+        self.application_state_store = ApplicationStateStore()
+        self.selection_store = SelectionStore()
+        self.perspective_store = PerspectiveStore()
+        self.presentation_context_store = PresentationContextStore(
+            self.application_state_store,
+            self.selection_store,
+            self.perspective_store,
+        )
+        self.workspace_store = WorkspaceStore(self.perspective_store)
+        self.navigation_controller = NavigationController(
+            self.perspective_store,
+            self.workspace_store,
+            self.selection_store,
+        )
+        self.notification_center = NotificationCenter()
+        self.operation_executor = OperationExecutor(
+            self.application_state_store
+        )
+        self._presentation_unsubscribers = []
 
     # ------------------------------------------------------------------
 
@@ -300,7 +339,8 @@ class MainWindow(QMainWindow):
 
     def _create_central_area(self):
 
-        self.stack = QStackedWidget()
+        self.workspace_host = WorkspaceHost()
+        self.stack = self.workspace_host
         self.view_manager = ViewManager(self.stack)
 
         home_view = HomeView(self.contribution_manager)
@@ -493,6 +533,102 @@ class MainWindow(QMainWindow):
 
         self.setStatusBar(status)
 
+    def _install_presentation_integration(self) -> None:
+        titles = {
+            "home": "Visão geral",
+            "pdf": "Documento",
+            "search": "Pesquisa",
+            "evidence": "Evidências",
+            "documents": "Documentos",
+        }
+        for order, (view_id, view) in enumerate(
+            self.views.items(), start=1
+        ):
+            self.perspective_store.register(
+                PerspectiveDefinition(
+                    id=PerspectiveId(view_id),
+                    title=titles.get(
+                        view_id,
+                        view_id.replace("_", " ").title(),
+                    ),
+                    order=order,
+                    icon=None,
+                    requires_project=view_id != "home",
+                    factory=lambda widget=view: widget,
+                )
+            )
+
+        self._presentation_unsubscribers.extend(
+            (
+                self.application_state_store.subscribe(
+                    self._on_application_state_changed
+                ),
+                self.workspace_store.subscribe(
+                    self._on_workspace_changed
+                ),
+                self.notification_center.subscribe(
+                    self._on_notification
+                ),
+            )
+        )
+        self._on_application_state_changed(
+            self.application_state_store.snapshot
+        )
+        self.navigation_controller.navigate_to(PerspectiveId("home"))
+
+    def _on_application_state_changed(
+        self, snapshot: ApplicationStateSnapshot
+    ) -> None:
+        has_project = snapshot.has_project
+        is_available = snapshot.state not in (
+            ApplicationState.BUSY,
+            ApplicationState.CLOSING,
+        )
+        self.action_close_project.setEnabled(has_project and is_available)
+        self.action_documents_workspace.setEnabled(
+            has_project and is_available
+        )
+        self.action_evidence_workspace.setEnabled(
+            has_project and is_available
+        )
+        self.action_new_evidence.setEnabled(has_project and is_available)
+
+        if snapshot.state is ApplicationState.BUSY:
+            self.status_message.setText("Operação em andamento")
+        elif snapshot.state is ApplicationState.ERROR:
+            self.status_message.setText(
+                f"Erro: {snapshot.error}"
+            )
+        elif not snapshot.has_project:
+            self.status_message.setText("Nenhum projeto aberto")
+        elif snapshot.project_id is not None:
+            self.status_message.setText(
+                f"Projeto: {snapshot.project_id}"
+            )
+
+    def _on_workspace_changed(
+        self, snapshot: WorkspaceSnapshot
+    ) -> None:
+        if snapshot.active_perspective is None:
+            return
+        definition = self.perspective_store.get(
+            snapshot.active_perspective
+        )
+        widget = definition.factory()
+        if not isinstance(widget, QWidget):
+            raise TypeError(
+                "factory da perspectiva deve retornar QWidget."
+            )
+        self.workspace_host.set_active_widget(widget)
+
+    def _on_notification(self, notification: Notification) -> None:
+        timeout = (
+            0
+            if notification.timeout is None
+            else round(notification.timeout * 1000)
+        )
+        self.statusBar().showMessage(notification.message, timeout)
+
     # ------------------------------------------------------------------
 
     def show_view(
@@ -503,7 +639,10 @@ class MainWindow(QMainWindow):
         Exibe uma view registrada.
         """
 
-        return self.view_manager.show(name)
+        if name not in self.views:
+            return False
+        self.navigation_controller.navigate_to(PerspectiveId(name))
+        return self.workspace_host.active_widget is self.views[name]
 
     # ------------------------------------------------------------------
 
@@ -516,8 +655,11 @@ class MainWindow(QMainWindow):
         Atualiza toda a interface para um projeto aberto.
         """
 
-        previous_project = self.project
-        self.project = project
+        root = self.project_tree.topLevelItem(0)
+        had_project = (
+            root is not None
+            and root.text(0) != "Nenhum projeto aberto"
+        )
         self.action_evidence_workspace.setEnabled(True)
         self.action_new_evidence.setEnabled(True)
         self.action_documents_workspace.setEnabled(True)
@@ -536,10 +678,10 @@ class MainWindow(QMainWindow):
         self.pdf_view.clear_document()
         self.show_view("home")
 
-        if previous_project is None:
-            self.view_manager.notify_project_opened(project)
-        else:
+        if had_project:
             self.view_manager.notify_project_changed(project)
+        else:
+            self.view_manager.notify_project_opened(project)
 
     # ------------------------------------------------------------------
 
@@ -548,7 +690,6 @@ class MainWindow(QMainWindow):
         Limpa toda a interface.
         """
 
-        self.project = None
         self.action_evidence_workspace.setEnabled(False)
         self.action_new_evidence.setEnabled(False)
         self.action_documents_workspace.setEnabled(False)
@@ -597,9 +738,14 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event) -> None:
         guard = getattr(self, "_close_guard", None)
         if guard is None or guard():
+            self._dispose_presentation_integration()
             event.accept()
         else:
             event.ignore()
+
+    def _dispose_presentation_integration(self) -> None:
+        while self._presentation_unsubscribers:
+            self._presentation_unsubscribers.pop()()
 
     # ------------------------------------------------------------------
 

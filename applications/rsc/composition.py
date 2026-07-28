@@ -42,6 +42,11 @@ from applications.rsc.services import (
     RscValidationService,
 )
 from applications.rsc.catalogs import OfficialRscCatalog
+from applications.rsc.infrastructure import (
+    DocumentHashService,
+    ProjectRepository as PdopProjectRepository,
+)
+from applications.rsc.services import DocumentHealthService
 from applications.rsc.use_cases import (
     CalculateScoreUseCase,
     CreateActivityUseCase,
@@ -59,10 +64,14 @@ from applications.rsc.use_cases import (
     ListEvidenceByActivityUseCase,
     ListEvidenceUseCase,
     ListProcessesUseCase,
+    LoadProjectUseCase,
     RegisterDocumentUseCase,
     RemoveDocumentUseCase,
     RscUseCaseRegistry,
+    SaveProjectUseCase,
     ValidateProcessUseCase,
+    UpdateDocumentReferenceUseCase,
+    VerifyDocumentsUseCase,
 )
 
 from .project_session import RscProjectSession
@@ -135,6 +144,8 @@ def create_rsc_project_session(
     validation_service = RscValidationService(official_catalog)
     scoring_service = RscScoringService(official_catalog)
     document_service = RscDocumentService()
+    document_hash_service = DocumentHashService()
+    document_health_service = DocumentHealthService(document_hash_service)
     use_cases = RscUseCaseRegistry()
     use_cases.register(CreateProcessUseCase(process_service))
     use_cases.register(RegisterDocumentUseCase(process_service, document_service))
@@ -207,6 +218,33 @@ def create_rsc_project_session(
         )
     )
     use_cases.register(GenerateSummaryUseCase(use_cases))
+    use_cases.register(
+        VerifyDocumentsUseCase(document_service, document_health_service)
+    )
+    use_cases.register(
+        UpdateDocumentReferenceUseCase(
+            document_service, document_hash_service
+        )
+    )
+    persistence_repository = PdopProjectRepository()
+    use_cases.register(
+        SaveProjectUseCase(
+            process_service,
+            document_service,
+            evidence_service,
+            official_catalog,
+            persistence_repository,
+        )
+    )
+    use_cases.register(
+        LoadProjectUseCase(
+            process_service,
+            document_service,
+            evidence_service,
+            official_catalog,
+            persistence_repository,
+        )
+    )
 
     return RscProjectSession(
         activity_repository=selected.activity,

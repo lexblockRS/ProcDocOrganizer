@@ -1,5 +1,7 @@
 """Representações internas da camada Application do ProcDoc RSC."""
 
+__api_status__ = "legacy-compatibility"
+
 from .activity import Activity, ActivityState
 from .functional_assignment_evidence import (
     FunctionalAssignmentEvidence,

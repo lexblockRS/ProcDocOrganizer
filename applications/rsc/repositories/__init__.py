@@ -1,5 +1,7 @@
 """Repositórios disponíveis para a camada Application do ProcDoc RSC."""
 
+__api_status__ = "internal"
+
 from .in_memory_activity_repository import InMemoryActivityRepository
 from .in_memory_functional_assignment_evidence_repository import (
     DuplicateFunctionalAssignmentEvidenceError,

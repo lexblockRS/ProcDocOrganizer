@@ -12,10 +12,18 @@ from .use_cases import (
     CreateProcessUseCase,
     GenerateSummaryCommand,
     GenerateSummaryUseCase,
+    LoadProjectCommand,
+    LoadProjectUseCase,
     RegisterDocumentCommand,
     RegisterDocumentUseCase,
+    SaveProjectCommand,
+    SaveProjectUseCase,
     ValidateProcessCommand,
     ValidateProcessUseCase,
+    UpdateDocumentReferenceCommand,
+    UpdateDocumentReferenceUseCase,
+    VerifyDocumentsCommand,
+    VerifyDocumentsUseCase,
 )
 
 
@@ -49,6 +57,20 @@ class RscApplicationFacade:
 
     def generate_summary(self, command: GenerateSummaryCommand):
         return self._execute(GenerateSummaryUseCase, command)
+
+    def save_project(self, command: SaveProjectCommand):
+        return self._execute(SaveProjectUseCase, command)
+
+    def load_project(self, command: LoadProjectCommand):
+        return self._execute(LoadProjectUseCase, command)
+
+    def verify_documents(self, command: VerifyDocumentsCommand):
+        return self._execute(VerifyDocumentsUseCase, command)
+
+    def update_document_reference(
+        self, command: UpdateDocumentReferenceCommand
+    ):
+        return self._execute(UpdateDocumentReferenceUseCase, command)
 
     def _execute(self, use_case_type, command):
         return self._session.use_cases.get(use_case_type).execute(command)

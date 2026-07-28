@@ -34,5 +34,12 @@ class RscDocumentService:
         except KeyError as exc:
             raise KeyError(f"documento inexistente: {document_id}") from exc
 
+    def replace_document(self, document: RscDocument) -> None:
+        if not isinstance(document, RscDocument):
+            raise TypeError("document deve ser RscDocument.")
+        if document.id not in self._documents:
+            raise KeyError(f"documento inexistente: {document.id}")
+        self._documents[document.id] = document
+
     def clear(self) -> None:
         self._documents.clear()
