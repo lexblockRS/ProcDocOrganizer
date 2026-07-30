@@ -150,3 +150,21 @@ fato; o Kernel executa somente aritmética sobre contratos preparados. Regras
 como `PER_YEAR`, `PER_MONTH`, `PER_EVENT` e `PER_PUBLICATION` reutilizam a
 mesma infraestrutura de compatibilidade sem introduzir verificações
 específicas nesses dois componentes.
+
+## ADR-RSC-015 — Conhecimento normativo reside no catálogo
+
+Status: aceita.
+
+Decisão: descrição, família, unidade, Measurement requerida, política de
+compatibilidade, motor, valor, limites, dependências, revisão humana e
+explicabilidade dos critérios passam a ser representados por
+`NormativeCriterionCatalog`.
+
+O Kernel conhece apenas motores aritméticos e recebe operandos pelo contrato.
+Ele não conhece códigos específicos do Decreto. As políticas de
+compatibilidade também pertencem ao catálogo e são consumidas por
+`ExecutionCompatibility`.
+
+Consequência: os 55 critérios são parametrizados e validados como configuração
+imutável. Os JSON anteriores permanecem como artefatos transitórios de
+comparação e integração; não constituem decisão de persistência definitiva.

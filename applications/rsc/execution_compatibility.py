@@ -19,6 +19,13 @@ from applications.rsc.execution_validation import (
     ExecutionValidation,
     ExecutionValidationCollection,
 )
+from applications.rsc.normative_catalog import (
+    ArithmeticEngine,
+    COMPATIBILITY_POLICIES,
+    ENGINE_COMPATIBILITY_POLICIES,
+    CompatibilityPolicyId,
+    NormativeCriterionCatalog,
+)
 
 
 class ExecutionCompatibilityError(ValueError):
@@ -87,14 +94,6 @@ class ExecutionCompatibilityCollection:
 class ExecutionCompatibilityEvaluator:
     """Avalia somente compatibilidade sem revalidar ou calcular."""
 
-    _POLICIES = MappingProxyType({
-        "PER_YEAR": ("DURATION",),
-        "PER_MONTH": ("DURATION",),
-        "PER_EVENT": ("COUNT", "QUANTITY", "HOURS"),
-        "PER_PUBLICATION": ("COUNT", "QUANTITY"),
-        "CUSTOM_TEXT": ("COUNT", "QUANTITY", "HOURS"),
-    })
-
     def __init__(self, execution_rules: Mapping[str, Any]) -> None:
         if not isinstance(execution_rules, Mapping):
             raise TypeError("execution_rules deve ser um mapeamento.")
@@ -117,6 +116,30 @@ class ExecutionCompatibilityEvaluator:
                 "O catálogo de regras deve ser um objeto JSON."
             )
         return cls(document)
+
+    @classmethod
+    def from_catalog(
+        cls,
+        catalog: NormativeCriterionCatalog,
+    ) -> "ExecutionCompatibilityEvaluator":
+        if not isinstance(catalog, NormativeCriterionCatalog):
+            raise TypeError("catalog deve ser NormativeCriterionCatalog.")
+        return cls({
+            "rules": tuple({
+                "id": definition.execution_rule_id,
+                "criterion_id": definition.code,
+                "requirement_id": definition.requirement_id,
+                "measurement_type": (
+                    definition.required_measurement.value
+                ),
+                "counting_rule": {
+                    "type": definition.arithmetic_engine.value,
+                },
+                "compatibility_policy": (
+                    definition.compatibility_policy.value
+                ),
+            } for definition in catalog)
+        })
 
     def evaluate(
         self,
@@ -160,7 +183,17 @@ class ExecutionCompatibilityEvaluator:
         counting_rule = self._counting_rule(rule)
         expected = self._text(rule, "measurement_type")
         observed = fact.measurement.measurement_type
-        allowed = self._POLICIES.get(counting_rule, ())
+        policy_id = self._policy_id(rule, counting_rule)
+        allowed = (
+            tuple(
+                item.value
+                for item in COMPATIBILITY_POLICIES[
+                    policy_id
+                ].allowed_measurements
+            )
+            if policy_id is not None
+            else ()
+        )
         issues: list[str] = []
         if not allowed:
             issues.append(
@@ -232,6 +265,23 @@ class ExecutionCompatibilityEvaluator:
                 "counting_rule deve ser um objeto."
             )
         return ExecutionCompatibilityEvaluator._text(value, "type")
+
+    @staticmethod
+    def _policy_id(
+        rule: Mapping[str, Any],
+        counting_rule: str,
+    ) -> CompatibilityPolicyId | None:
+        declared = rule.get("compatibility_policy")
+        if declared is not None:
+            try:
+                return CompatibilityPolicyId(str(declared))
+            except ValueError:
+                return None
+        try:
+            engine = ArithmeticEngine(counting_rule)
+        except ValueError:
+            return None
+        return ENGINE_COMPATIBILITY_POLICIES[engine]
 
     @staticmethod
     def _text(values: Mapping[str, Any], field: str) -> str:
