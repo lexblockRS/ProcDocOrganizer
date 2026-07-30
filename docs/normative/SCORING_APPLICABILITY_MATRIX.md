@@ -1,0 +1,82 @@
+# Matriz de Aplicabilidade das Tabelas de Pontuação
+
+## 1. Critério de classificação
+
+- `FULLY_AUTOMATABLE`: todos os fatos, condições, quantidades, variantes e
+  operações necessários estão estruturados.
+- `ASSISTED`: há unidade e valor estruturados, mas ao menos um fato, condição,
+  quantidade ou escolha precisa ser fornecido externamente.
+- `HUMAN_ONLY`: a estrutura não oferece sequer um método de pontuação
+  operacionalizável.
+
+Como os quatro datasets não contêm ocorrências factuais, contagens nem
+predicados para as condições de `official_text`, todos os critérios são
+`ASSISTED`. Essa classificação não interpreta o mérito de nenhum critério.
+
+## 2. Matriz
+
+| Critério | Requisito | Tabela | Método disponível | Automação |
+|---|---|---|---|---|
+| `DEC13048-ANX-I-ITEM-01` | `DEC13048-ART3-I` | `DEC13048-TABLE-ANEXO-I` | 3 por ano/fração | `ASSISTED` |
+| `DEC13048-ANX-I-ITEM-02` | `DEC13048-ART3-I` | `DEC13048-TABLE-ANEXO-I` | 4,5 por designação | `ASSISTED` |
+| `DEC13048-ANX-I-ITEM-03` | `DEC13048-ART3-I` | `DEC13048-TABLE-ANEXO-I` | 3 por designação | `ASSISTED` |
+| `DEC13048-ANX-I-ITEM-04` | `DEC13048-ART3-I` | `DEC13048-TABLE-ANEXO-I` | 3 por designação | `ASSISTED` |
+| `DEC13048-ANX-I-ITEM-05` | `DEC13048-ART3-I` | `DEC13048-TABLE-ANEXO-I` | 4,5 por designação | `ASSISTED` |
+| `DEC13048-ANX-I-ITEM-06` | `DEC13048-ART3-I` | `DEC13048-TABLE-ANEXO-I` | 3 por designação | `ASSISTED` |
+| `DEC13048-ANX-I-ITEM-07` | `DEC13048-ART3-I` | `DEC13048-TABLE-ANEXO-I` | 1,5 por ano/fração | `ASSISTED` |
+| `DEC13048-ANX-I-ITEM-08` | `DEC13048-ART3-I` | `DEC13048-TABLE-ANEXO-I` | 3 por designação | `ASSISTED` |
+| `DEC13048-ANX-I-ITEM-09` | `DEC13048-ART3-I` | `DEC13048-TABLE-ANEXO-I` | 7,5 por designação | `ASSISTED` |
+| `DEC13048-ANX-I-ITEM-10` | `DEC13048-ART3-I` | `DEC13048-TABLE-ANEXO-I` | 4,5 por produto | `ASSISTED` |
+| `DEC13048-ANX-II-ITEM-01` | `DEC13048-ART3-II` | `DEC13048-TABLE-ANEXO-II` | 7,5 por projeto | `ASSISTED` |
+| `DEC13048-ANX-II-ITEM-02` | `DEC13048-ART3-II` | `DEC13048-TABLE-ANEXO-II` | 4,5 por projeto | `ASSISTED` |
+| `DEC13048-ANX-II-ITEM-03` | `DEC13048-ART3-II` | `DEC13048-TABLE-ANEXO-II` | 7,5 por mandato | `ASSISTED` |
+| `DEC13048-ANX-II-ITEM-04` | `DEC13048-ART3-II` | `DEC13048-TABLE-ANEXO-II` | 3 por projeto | `ASSISTED` |
+| `DEC13048-ANX-II-ITEM-05` | `DEC13048-ART3-II` | `DEC13048-TABLE-ANEXO-II` | 3 por designação | `ASSISTED` |
+| `DEC13048-ANX-II-ITEM-06` | `DEC13048-ART3-II` | `DEC13048-TABLE-ANEXO-II` | 3 por produto | `ASSISTED` |
+| `DEC13048-ANX-II-ITEM-07` | `DEC13048-ART3-II` | `DEC13048-TABLE-ANEXO-II` | 3 por evento | `ASSISTED` |
+| `DEC13048-ANX-II-ITEM-08` | `DEC13048-ART3-II` | `DEC13048-TABLE-ANEXO-II` | 3 por projeto | `ASSISTED` |
+| `DEC13048-ANX-II-ITEM-09` | `DEC13048-ART3-II` | `DEC13048-TABLE-ANEXO-II` | 1 por capacitação | `ASSISTED` |
+| `DEC13048-ANX-II-ITEM-10` | `DEC13048-ART3-II` | `DEC13048-TABLE-ANEXO-II` | 1 por ano/fração | `ASSISTED` |
+| `DEC13048-ANX-II-ITEM-11` | `DEC13048-ART3-II` | `DEC13048-TABLE-ANEXO-II` | 1 por evento | `ASSISTED` |
+| `DEC13048-ANX-III-ITEM-01` | `DEC13048-ART3-III` | `DEC13048-TABLE-ANEXO-III` | 20 por prêmio | `ASSISTED` |
+| `DEC13048-ANX-III-ITEM-02` | `DEC13048-ART3-III` | `DEC13048-TABLE-ANEXO-III` | 15 por prêmio | `ASSISTED` |
+| `DEC13048-ANX-III-ITEM-03` | `DEC13048-ART3-III` | `DEC13048-TABLE-ANEXO-III` | 7,5 por prêmio | `ASSISTED` |
+| `DEC13048-ANX-IV-ITEM-01` | `DEC13048-ART3-IV` | `DEC13048-TABLE-ANEXO-IV` | 4,5 por sistema | `ASSISTED` |
+| `DEC13048-ANX-IV-ITEM-02` | `DEC13048-ART3-IV` | `DEC13048-TABLE-ANEXO-IV` | 3 por designação | `ASSISTED` |
+| `DEC13048-ANX-IV-ITEM-03` | `DEC13048-ART3-IV` | `DEC13048-TABLE-ANEXO-IV` | 4,5 por designação | `ASSISTED` |
+| `DEC13048-ANX-IV-ITEM-04` | `DEC13048-ART3-IV` | `DEC13048-TABLE-ANEXO-IV` | 3 por ano/fração | `ASSISTED` |
+| `DEC13048-ANX-IV-ITEM-05` | `DEC13048-ART3-IV` | `DEC13048-TABLE-ANEXO-IV` | 3 por ano/fração | `ASSISTED` |
+| `DEC13048-ANX-IV-ITEM-06` | `DEC13048-ART3-IV` | `DEC13048-TABLE-ANEXO-IV` | 3 por ano/fração | `ASSISTED` |
+| `DEC13048-ANX-IV-ITEM-07` | `DEC13048-ART3-IV` | `DEC13048-TABLE-ANEXO-IV` | 3 por designação | `ASSISTED` |
+| `DEC13048-ANX-IV-ITEM-08` | `DEC13048-ART3-IV` | `DEC13048-TABLE-ANEXO-IV` | 4,5 por ano/fração | `ASSISTED` |
+| `DEC13048-ANX-V-ITEM-01` | `DEC13048-ART3-V` | `DEC13048-TABLE-ANEXO-V` | por ano/fração: titular 9; substituto 4,5 | `ASSISTED` |
+| `DEC13048-ANX-V-ITEM-02` | `DEC13048-ART3-V` | `DEC13048-TABLE-ANEXO-V` | por ano/fração: titular 7,5; substituto 3 | `ASSISTED` |
+| `DEC13048-ANX-V-ITEM-03` | `DEC13048-ART3-V` | `DEC13048-TABLE-ANEXO-V` | por ano/fração: titular 4,5; substituto 1,5 | `ASSISTED` |
+| `DEC13048-ANX-V-ITEM-04` | `DEC13048-ART3-V` | `DEC13048-TABLE-ANEXO-V` | por ano/fração: titular 3; substituto 1 | `ASSISTED` |
+| `DEC13048-ANX-VI-ITEM-01` | `DEC13048-ART3-VI` | `DEC13048-TABLE-ANEXO-VI` | 30 por patente | `ASSISTED` |
+| `DEC13048-ANX-VI-ITEM-02` | `DEC13048-ART3-VI` | `DEC13048-TABLE-ANEXO-VI` | 25 por projeto | `ASSISTED` |
+| `DEC13048-ANX-VI-ITEM-03` | `DEC13048-ART3-VI` | `DEC13048-TABLE-ANEXO-VI` | 20 por produto | `ASSISTED` |
+| `DEC13048-ANX-VI-ITEM-04` | `DEC13048-ART3-VI` | `DEC13048-TABLE-ANEXO-VI` | 15 por curso | `ASSISTED` |
+| `DEC13048-ANX-VI-ITEM-05` | `DEC13048-ART3-VI` | `DEC13048-TABLE-ANEXO-VI` | 15 por produto | `ASSISTED` |
+| `DEC13048-ANX-VI-ITEM-06` | `DEC13048-ART3-VI` | `DEC13048-TABLE-ANEXO-VI` | 7,5 por grupo de pesquisa | `ASSISTED` |
+| `DEC13048-ANX-VI-ITEM-07` | `DEC13048-ART3-VI` | `DEC13048-TABLE-ANEXO-VI` | 3 por projeto | `ASSISTED` |
+| `DEC13048-ANX-VI-ITEM-08` | `DEC13048-ART3-VI` | `DEC13048-TABLE-ANEXO-VI` | 7,5 por projeto | `ASSISTED` |
+| `DEC13048-ANX-VI-ITEM-09` | `DEC13048-ART3-VI` | `DEC13048-TABLE-ANEXO-VI` | 20 por produto | `ASSISTED` |
+| `DEC13048-ANX-VI-ITEM-10` | `DEC13048-ART3-VI` | `DEC13048-TABLE-ANEXO-VI` | 7,5 por publicação | `ASSISTED` |
+| `DEC13048-ANX-VI-ITEM-11` | `DEC13048-ART3-VI` | `DEC13048-TABLE-ANEXO-VI` | 4,5 por produto | `ASSISTED` |
+| `DEC13048-ANX-VI-ITEM-12` | `DEC13048-ART3-VI` | `DEC13048-TABLE-ANEXO-VI` | 4,5 por produto | `ASSISTED` |
+| `DEC13048-ANX-VI-ITEM-13` | `DEC13048-ART3-VI` | `DEC13048-TABLE-ANEXO-VI` | 4,5 por projeto | `ASSISTED` |
+| `DEC13048-ANX-VI-ITEM-14` | `DEC13048-ART3-VI` | `DEC13048-TABLE-ANEXO-VI` | 3 por evento | `ASSISTED` |
+| `DEC13048-ANX-VI-ITEM-15` | `DEC13048-ART3-VI` | `DEC13048-TABLE-ANEXO-VI` | 4,5 por curso | `ASSISTED` |
+| `DEC13048-ANX-VI-ITEM-16` | `DEC13048-ART3-VI` | `DEC13048-TABLE-ANEXO-VI` | 3,5 por evento | `ASSISTED` |
+| `DEC13048-ANX-VI-ITEM-17` | `DEC13048-ART3-VI` | `DEC13048-TABLE-ANEXO-VI` | 4,5 por evento | `ASSISTED` |
+| `DEC13048-ANX-VI-ITEM-18` | `DEC13048-ART3-VI` | `DEC13048-TABLE-ANEXO-VI` | 3 por produto | `ASSISTED` |
+| `DEC13048-ANX-VI-ITEM-19` | `DEC13048-ART3-VI` | `DEC13048-TABLE-ANEXO-VI` | 1 por mês | `ASSISTED` |
+
+## 3. Totais
+
+| Grau | Critérios |
+|---|---:|
+| `FULLY_AUTOMATABLE` | 0 |
+| `ASSISTED` | 55 |
+| `HUMAN_ONLY` | 0 |

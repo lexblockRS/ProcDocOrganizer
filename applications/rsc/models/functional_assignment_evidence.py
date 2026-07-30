@@ -148,9 +148,16 @@ class FunctionalAssignmentEvidence:
         )
 
     def mark_identified(self) -> "FunctionalAssignmentEvidence":
-        return self._transition(
+        if self.status not in (
+            FunctionalAssignmentEvidenceStatus.RAW,
             FunctionalAssignmentEvidenceStatus.NORMALIZED,
-            FunctionalAssignmentEvidenceStatus.IDENTIFIED,
+        ):
+            raise ValueError(
+                "transição para identified exige status raw."
+            )
+        return replace(
+            self,
+            status=FunctionalAssignmentEvidenceStatus.IDENTIFIED,
         )
 
     def mark_linked(self) -> "FunctionalAssignmentEvidence":

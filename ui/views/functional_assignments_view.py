@@ -14,6 +14,10 @@ class FunctionalAssignmentsView(QWidget):
     create_activity_requested = Signal()
     open_source_requested = Signal()
     refresh_requested = Signal()
+    new_requested = Signal()
+    edit_requested = Signal()
+    delete_requested = Signal()
+    advance_requested = Signal()
 
     def __init__(self):
         super().__init__()
@@ -58,6 +62,14 @@ class FunctionalAssignmentsView(QWidget):
         self.open_source_button.clicked.connect(self.open_source_requested)
         self.refresh_button = QPushButton("Atualizar")
         self.refresh_button.clicked.connect(self.refresh_requested)
+        self.new_button = QPushButton("Nova interpretação")
+        self.new_button.clicked.connect(self.new_requested)
+        self.edit_button = QPushButton("Editar")
+        self.edit_button.clicked.connect(self.edit_requested)
+        self.delete_button = QPushButton("Excluir")
+        self.delete_button.clicked.connect(self.delete_requested)
+        self.advance_button = QPushButton("Avançar estado")
+        self.advance_button.clicked.connect(self.advance_requested)
         self.create_exercise_button = QPushButton(
             "Criar exercício funcional"
         )
@@ -73,6 +85,10 @@ class FunctionalAssignmentsView(QWidget):
             self.create_activity_requested
         )
         actions = QHBoxLayout()
+        actions.addWidget(self.new_button)
+        actions.addWidget(self.edit_button)
+        actions.addWidget(self.delete_button)
+        actions.addWidget(self.advance_button)
         actions.addWidget(self.create_exercise_button)
         actions.addWidget(self.create_activity_button)
         actions.addWidget(self.open_source_button)
@@ -136,6 +152,9 @@ class FunctionalAssignmentsView(QWidget):
             for label in self.details.values():
                 label.clear()
             self.open_source_button.setEnabled(False)
+            self.edit_button.setEnabled(False)
+            self.delete_button.setEnabled(False)
+            self.advance_button.setEnabled(False)
             self._selection_changed()
             return
         start = assignment.start_date.isoformat() if assignment.start_date else "—"
@@ -172,6 +191,9 @@ class FunctionalAssignmentsView(QWidget):
         for key, value in values.items():
             self.details[key].setText(value)
         self.open_source_button.setEnabled(evidence is not None)
+        self.edit_button.setEnabled(True)
+        self.delete_button.setEnabled(True)
+        self.advance_button.setEnabled(assignment.status != "linked")
 
     def show_message(self, message):
         self.message_label.setText(message)

@@ -23,3 +23,10 @@ class FunctionalExerciseRepository(Protocol):
     def list_all(self) -> tuple[FunctionalExercise, ...]:
         """Retorna todos os exercícios em ordem de inserção."""
         ...
+
+    def update(self, exercise: FunctionalExercise) -> FunctionalExercise: ...
+
+    def delete(
+        self,
+        exercise_id: FunctionalExerciseId,
+    ) -> FunctionalExercise | None: ...

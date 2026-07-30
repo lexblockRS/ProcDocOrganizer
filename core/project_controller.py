@@ -82,12 +82,19 @@ class ProjectController:
             exercise_navigation_requested=(
                 self._navigate_to_functional_exercise
             ),
+            selection_store=self.window.selection_store,
+            notify=self._show_activity_message,
+            confirm_delete=self._confirm_delete_activity,
+            confirm_unsaved=self._confirm_unsaved_activity,
         )
         self.functional_assignments_controller = (
             FunctionalAssignmentsController(
                 self.window.views["functional_assignments"],
                 parent=self.window,
                 evidence_navigation_requested=self._navigate_to_evidence,
+                selection_store=self.window.selection_store,
+                notify=self._show_functional_assignment_message,
+                confirm_delete=self._confirm_delete_functional_assignment,
             )
         )
         self.functional_exercises_controller = FunctionalExercisesController(
@@ -96,6 +103,9 @@ class ProjectController:
             assignment_navigation_requested=(
                 self._navigate_to_functional_assignment
             ),
+            selection_store=self.window.selection_store,
+            notify=self._show_functional_exercise_message,
+            confirm_delete=self._confirm_delete_functional_exercise,
         )
         self.search_controller = SearchController(
             self.window.search_workspace,
@@ -105,6 +115,16 @@ class ProjectController:
             self.window.documents_workspace,
             evidence_source_requested=self._create_evidence_from_documents,
             document_remove_requested=self._remove_document,
+            document_open_requested=self._open_workspace_document,
+            document_ocr_requested=self._process_workspace_document,
+            selection_store=self.window.selection_store,
+            document_metadata_update_requested=(
+                self._update_document_metadata
+            ),
+            confirm_unsaved_metadata=(
+                self._confirm_unsaved_document_metadata
+            ),
+            notify=self._show_document_metadata_message,
         )
         self.evidence_controller = EvidenceController(
             self.window.evidence_workspace,
@@ -113,6 +133,8 @@ class ProjectController:
             confirm_duplicates=self._confirm_duplicate_evidence,
             notify=self._show_evidence_message,
             document_navigation_requested=self._navigate_from_evidence,
+            selection_store=self.window.selection_store,
+            deletion_allowed=False,
         )
         self.search_controller.set_evidence_source_requested(
             self._create_evidence_from_search
@@ -502,57 +524,123 @@ class ProjectController:
 
             return
 
+        if not getattr(
+            self.documents_controller,
+            "can_leave_metadata",
+            lambda: True,
+        )():
+            return
+
         files, _ = QFileDialog.getOpenFileNames(
             self.window,
             "Importar Documentos",
             "",
-            "Arquivos PDF (*.pdf);;Todos os Arquivos (*)",
+            "Arquivos PDF (*.pdf)",
         )
 
         if not files:
+            self._publish_project_notification(
+                NotificationLevel.INFO,
+                "Documentos",
+                "Importação cancelada.",
+            )
+            return
+
+        invalid_files = tuple(
+            path for path in files if Path(path).suffix.casefold() != ".pdf"
+        )
+        if invalid_files:
+            self._publish_project_notification(
+                NotificationLevel.ERROR,
+                "Falha na importação",
+                "Somente arquivos PDF podem ser importados.",
+            )
             return
 
         try:
-            results = tuple(
-                self.session.document_import_service.import_file(path)
-                for path in files
+
+            results = self._execute_lifecycle_operation(
+                "document-import",
+                lambda: tuple(
+                    self.session.document_import_service.import_file(path)
+                    for path in files
+                ),
             )
 
         except Exception as exc:
-            QMessageBox.critical(
-                self.window,
-                "Erro",
-                str(exc),
-            )
-
+            self.documents_controller.refresh()
+            if not self._publish_project_notification(
+                NotificationLevel.ERROR,
+                "Falha na importação",
+                f"Não foi possível importar os documentos: {exc}",
+            ):
+                QMessageBox.critical(
+                    self.window,
+                    "Erro",
+                    str(exc),
+                )
             return
 
-        self.window.set_project(
-            self.state.current_project,
-            self.session.document_repository.list_documents(),
-        )
+        self.documents_controller.refresh()
         self._refresh_dashboard()
 
-        stored_only = sum(
-            not self.document_processor.parser_registry.supports(
-                self.state.current_project.project_path
-                / item.document.relative_path
+        imported_count = sum(
+            not item.is_duplicate for item in results
+        )
+        duplicate_count = len(results) - imported_count
+        message = (
+            "Documento importado."
+            if imported_count == 1
+            else f"{imported_count} documentos importados."
+        )
+        if duplicate_count:
+            message += (
+                f" {duplicate_count} arquivo(s) duplicado(s) "
+                "já estava(m) registrado(s)."
             )
-            for item in results
+        self._publish_project_notification(
+            NotificationLevel.SUCCESS,
+            "Documentos",
+            message,
         )
-        format_message = (
-            f"\n{stored_only} arquivo(s) foi/foram armazenado(s), "
-            "mas o processamento textual atual aceita somente PDF."
-            if stored_only
-            else ""
+
+    def _update_document_metadata(
+        self,
+        document_identity,
+        document_type,
+    ):
+        return self.session.document_metadata_service.update_document_type(
+            document_identity,
+            document_type,
         )
-        QMessageBox.information(
+
+    def _confirm_unsaved_document_metadata(self):
+        answer = QMessageBox.warning(
             self.window,
-            "Importação concluída",
-            f"{sum(not item.is_duplicate for item in results)} "
-            "documento(s) importado(s); "
-            f"{sum(item.is_duplicate for item in results)} duplicado(s)."
-            + format_message,
+            "Alterações não salvas",
+            "O documento possui alterações de metadados não salvas.",
+            (
+                QMessageBox.StandardButton.Save
+                | QMessageBox.StandardButton.Discard
+                | QMessageBox.StandardButton.Cancel
+            ),
+            QMessageBox.StandardButton.Cancel,
+        )
+        return {
+            QMessageBox.StandardButton.Save: "save",
+            QMessageBox.StandardButton.Discard: "discard",
+        }.get(answer, "cancel")
+
+    def _show_document_metadata_message(self, kind, message):
+        levels = {
+            "success": NotificationLevel.SUCCESS,
+            "info": NotificationLevel.INFO,
+            "error": NotificationLevel.ERROR,
+        }
+        self._publish_project_notification(
+            levels.get(kind, NotificationLevel.INFO),
+            "Documentos",
+            message,
         )
 
     def _remove_document(self, document_identity) -> bool:
@@ -560,23 +648,116 @@ class ProjectController:
             document_identity
         )
         if document is None:
+            self._publish_project_notification(
+                NotificationLevel.ERROR,
+                "Documentos",
+                "Não foi possível localizar o documento selecionado.",
+            )
             return False
         answer = QMessageBox.question(
             self.window,
             "Remover documento",
             f"Remover '{document.original_filename}' do acervo?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
         )
         if answer != QMessageBox.StandardButton.Yes:
+            self._publish_project_notification(
+                NotificationLevel.INFO,
+                "Documentos",
+                "Remoção cancelada.",
+            )
             return False
-        if not self.session.document_import_service.remove(document.id):
+        try:
+            removed = self.session.document_import_service.remove(document.id)
+        except Exception as exc:
+            self._publish_project_notification(
+                NotificationLevel.ERROR,
+                "Falha na remoção",
+                f"Não foi possível remover o documento: {exc}",
+            )
             return False
+        if not removed:
+            self._publish_project_notification(
+                NotificationLevel.ERROR,
+                "Falha na remoção",
+                "Não foi possível remover o documento.",
+            )
+            return False
+        self.window.selection_store.clear()
         self.documents_controller.refresh()
-        self.window.set_project(
-            self.state.current_project,
-            self.session.document_repository.list_documents(),
-        )
-        self.window.show_documents()
         self._refresh_dashboard()
+        self._publish_project_notification(
+            NotificationLevel.SUCCESS,
+            "Documentos",
+            "Documento removido.",
+        )
+        return True
+
+    def _open_workspace_document(self, document_identity) -> bool:
+        document = self.session.document_repository.find_by_hash(
+            document_identity
+        )
+        if document is None:
+            self._publish_project_notification(
+                NotificationLevel.ERROR,
+                "Documentos",
+                "Não foi possível localizar o documento selecionado.",
+            )
+            return False
+        try:
+            self.window.show_document(
+                self.state.current_project.project_path
+                / document.relative_path
+            )
+        except Exception as exc:
+            self._publish_project_notification(
+                NotificationLevel.ERROR,
+                "Falha ao abrir documento",
+                f"Não foi possível abrir o documento: {exc}",
+            )
+            return False
+        self._publish_project_notification(
+            NotificationLevel.SUCCESS,
+            "Documentos",
+            "Documento aberto.",
+        )
+        return True
+
+    def _process_workspace_document(self, document_identity) -> bool:
+        document = self.session.document_repository.find_by_hash(
+            document_identity
+        )
+        if document is None:
+            self._publish_project_notification(
+                NotificationLevel.ERROR,
+                "Falha no OCR",
+                "Não foi possível localizar o documento selecionado.",
+            )
+            return False
+        self.selected_document = document
+        self._publish_project_notification(
+            NotificationLevel.INFO,
+            "OCR",
+            "OCR iniciado.",
+        )
+        self.process_document()
+        self.documents_controller.refresh()
+        if document.processing_status in (
+            DocumentProcessingStatus.FAILED,
+            DocumentProcessingStatus.CANCELLED,
+        ):
+            self._publish_project_notification(
+                NotificationLevel.ERROR,
+                "Falha no OCR",
+                "Não foi possível concluir o OCR.",
+            )
+            return False
+        self._publish_project_notification(
+            NotificationLevel.SUCCESS,
+            "OCR",
+            "OCR concluído.",
+        )
         return True
 
     # ------------------------------------------------------------------
@@ -641,10 +822,37 @@ class ProjectController:
         if not self.evidence_controller.can_leave():
             return False
         if not self.documents_controller.refresh():
-            return False
-        if not self.documents_controller.navigate(request):
+            self._show_evidence_message(
+                "error",
+                "Falha ao abrir o documento.",
+            )
             return False
         self.window.show_documents()
+        if not self.documents_controller.navigate(request):
+            self._show_evidence_message(
+                "error",
+                "Falha ao abrir o documento.",
+            )
+            return False
+        outcome = getattr(
+            self.documents_controller,
+            "last_navigation_outcome",
+            None,
+        )
+        if outcome == getattr(
+            self.documents_controller,
+            "NAVIGATION_PAGE_MISSING",
+            "page_missing",
+        ):
+            self._show_evidence_message(
+                "warning",
+                "Página inexistente. Documento aberto.",
+            )
+        else:
+            self._show_evidence_message(
+                "success",
+                "Documento aberto.",
+            )
         return True
 
     def show_evidences(self):
@@ -676,6 +884,89 @@ class ProjectController:
             return
         self.activities_controller.refresh()
         self.window.show_activities()
+
+    def _show_activity_message(self, kind, message):
+        levels = {
+            "success": NotificationLevel.SUCCESS,
+            "info": NotificationLevel.INFO,
+            "warning": NotificationLevel.WARNING,
+            "error": NotificationLevel.ERROR,
+        }
+        self._publish_project_notification(
+            levels.get(kind, NotificationLevel.INFO),
+            "Activities",
+            message,
+        )
+
+    def _show_functional_assignment_message(self, kind, message):
+        levels = {
+            "success": NotificationLevel.SUCCESS,
+            "info": NotificationLevel.INFO,
+            "error": NotificationLevel.ERROR,
+        }
+        self._publish_project_notification(
+            levels.get(kind, NotificationLevel.INFO),
+            "Interpretação funcional",
+            message,
+        )
+        self.window.functional_assignments_view.show_message(message)
+
+    def _confirm_delete_functional_assignment(self, assignment):
+        return QMessageBox.question(
+            self.window,
+            "Excluir interpretação funcional",
+            f"Excluir a interpretação de '{assignment.role}'?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        ) == QMessageBox.StandardButton.Yes
+
+    def _show_functional_exercise_message(self, kind, message):
+        levels = {
+            "success": NotificationLevel.SUCCESS,
+            "info": NotificationLevel.INFO,
+            "error": NotificationLevel.ERROR,
+        }
+        self._publish_project_notification(
+            levels.get(kind, NotificationLevel.INFO),
+            "Exercícios funcionais",
+            message,
+        )
+        self.window.functional_exercises_view.show_message(message)
+
+    def _confirm_delete_functional_exercise(self, exercise):
+        return QMessageBox.question(
+            self.window,
+            "Excluir exercício funcional",
+            f"Excluir o exercício '{exercise.role}'?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        ) == QMessageBox.StandardButton.Yes
+
+    def _confirm_delete_activity(self, activity):
+        return QMessageBox.question(
+            self.window,
+            "Excluir Activity",
+            f"Excluir '{activity.description}'?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        ) == QMessageBox.StandardButton.Yes
+
+    def _confirm_unsaved_activity(self):
+        answer = QMessageBox.warning(
+            self.window,
+            "Alterações não salvas",
+            "A Activity possui alterações não salvas.",
+            (
+                QMessageBox.StandardButton.Save
+                | QMessageBox.StandardButton.Discard
+                | QMessageBox.StandardButton.Cancel
+            ),
+            QMessageBox.StandardButton.Cancel,
+        )
+        return {
+            QMessageBox.StandardButton.Save: "save",
+            QMessageBox.StandardButton.Discard: "discard",
+        }.get(answer, "cancel")
 
     def show_functional_assignments(self):
         if (
@@ -730,9 +1021,9 @@ class ProjectController:
         return True
 
     def _navigate_to_functional_assignment(self, assignment_id):
+        self.window.show_functional_assignments()
         if not self.functional_assignments_controller.select(assignment_id):
             return False
-        self.window.show_functional_assignments()
         return True
 
     def _navigate_to_functional_exercise(self, exercise_id):
@@ -749,16 +1040,19 @@ class ProjectController:
             evidence
         ):
             return False
+        selected = self.functional_assignments_controller._selected
         self.window.show_functional_assignments()
+        if selected is not None:
+            self.functional_assignments_controller.select(selected)
         self._refresh_dashboard()
         return True
 
     def _navigate_to_evidence(self, evidence_id):
         if not self.evidence_controller.load():
             return False
+        self.window.show_evidences()
         if not self.evidence_controller.select(evidence_id):
             return False
-        self.window.show_evidences()
         return True
 
     def new_evidence(self):
@@ -796,6 +1090,18 @@ class ProjectController:
             self.contribution_installer.clear()
             _APPLICATION_LIFECYCLE_HOST.dispose_session(self.session)
             self.session = None
+            return
+        if not getattr(
+            self.documents_controller,
+            "can_leave_metadata",
+            lambda: True,
+        )():
+            return
+        if not getattr(
+            getattr(self, "activities_controller", None),
+            "can_leave",
+            lambda: True,
+        )():
             return
         if not self.evidence_controller.can_leave():
             return
@@ -903,10 +1209,18 @@ class ProjectController:
 
     def _show_evidence_message(self, kind, message):
         self.window.evidence_workspace.show_message(message)
+        levels = {
+            "success": NotificationLevel.SUCCESS,
+            "info": NotificationLevel.INFO,
+            "error": NotificationLevel.ERROR,
+        }
+        self._publish_project_notification(
+            levels.get(kind, NotificationLevel.INFO),
+            "Evidence",
+            message,
+        )
         if kind == "success":
             self._refresh_dashboard()
-        if kind == "error":
-            QMessageBox.warning(self.window, "Evidências", message)
 
     # ------------------------------------------------------------------
 

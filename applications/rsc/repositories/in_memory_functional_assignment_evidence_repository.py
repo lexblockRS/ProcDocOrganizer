@@ -50,3 +50,18 @@ class InMemoryFunctionalAssignmentEvidenceRepository:
         self,
     ) -> tuple[FunctionalAssignmentEvidence, ...]:
         return tuple(self._items.values())
+
+    def update(
+        self,
+        evidence: FunctionalAssignmentEvidence,
+    ) -> FunctionalAssignmentEvidence:
+        if evidence.id not in self._items:
+            raise KeyError(f"atribuição inexistente: {evidence.id}")
+        self._items[evidence.id] = evidence
+        return evidence
+
+    def delete(
+        self,
+        evidence_id: FunctionalAssignmentEvidenceId,
+    ) -> FunctionalAssignmentEvidence | None:
+        return self._items.pop(evidence_id, None)

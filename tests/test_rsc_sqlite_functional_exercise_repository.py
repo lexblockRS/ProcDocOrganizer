@@ -387,6 +387,15 @@ class SQLiteFunctionalExerciseRepositoryTests(unittest.TestCase):
             )
             for index, source_id in enumerate(source_ids, start=1)
         )
+        for assignment in assignments:
+            domain_assignment = (
+                first.functional_assignment_evidence_repository.get_by_id(
+                    FunctionalAssignmentEvidenceId.from_string(assignment.id)
+                )
+            )
+            first.functional_assignment_evidence_repository.update(
+                domain_assignment.mark_identified().mark_linked()
+            )
         command = CreateFunctionalExerciseCommand(
             person_id="person-1",
             exercise_type_code="coordenacao",

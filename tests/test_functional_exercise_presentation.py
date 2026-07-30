@@ -13,6 +13,7 @@ from applications import RscApplication
 from applications.rsc.commands import (
     CreateFunctionalAssignmentEvidenceCommand,
 )
+from applications.rsc.models import FunctionalAssignmentEvidenceId
 from core.application_registry import ApplicationRegistry
 from core.project_controller import ProjectController
 from core.project_manager import ProjectManager
@@ -139,6 +140,17 @@ class FunctionalExercisePresentationTests(unittest.TestCase):
             )
             for index in range(2)
         )
+        assignment_repository = (
+            self.session.rsc_session
+            .functional_assignment_evidence_repository
+        )
+        for assignment in self.assignments:
+            domain_assignment = assignment_repository.get_by_id(
+                FunctionalAssignmentEvidenceId.from_string(assignment.id)
+            )
+            assignment_repository.update(
+                domain_assignment.mark_identified().mark_linked()
+            )
 
     def test_creates_from_multiple_assignments_lists_and_traces_source(self):
         view = ViewSpy()
@@ -172,30 +184,35 @@ class FunctionalExercisePresentationTests(unittest.TestCase):
 
     def test_requires_selection_and_rejects_duplicate_reference(self):
         view = ViewSpy()
+        notifications = []
         controller = FunctionalExercisesController(
-            view, dialog_factory=AcceptedExerciseDialog
+            view,
+            dialog_factory=AcceptedExerciseDialog,
+            notify=lambda kind, message: notifications.append(
+                (kind, message)
+            ),
         )
         controller.set_session(self.session)
         self.assertFalse(controller.create(()))
         self.assertIn("Selecione", view.message)
-        with patch(
-            "presentation.functional_exercises.controller.QMessageBox.warning"
-        ):
-            self.assertFalse(controller.create(
-                (self.assignments[0].id, self.assignments[0].id)
-            ))
+        self.assertFalse(controller.create(
+            (self.assignments[0].id, self.assignments[0].id)
+        ))
+        self.assertEqual(notifications[-1][0], "error")
 
     def test_period_validation_is_reported_without_persistence(self):
         view = ViewSpy()
+        notifications = []
         controller = FunctionalExercisesController(
-            view, dialog_factory=InvalidPeriodDialog
+            view,
+            dialog_factory=InvalidPeriodDialog,
+            notify=lambda kind, message: notifications.append(
+                (kind, message)
+            ),
         )
         controller.set_session(self.session)
-        with patch(
-            "presentation.functional_exercises.controller.QMessageBox.warning"
-        ) as warning:
-            self.assertFalse(controller.create((self.assignments[0].id,)))
-        self.assertTrue(warning.called)
+        self.assertFalse(controller.create((self.assignments[0].id,)))
+        self.assertEqual(notifications[-1][0], "error")
         self.assertEqual(view.items, ())
 
     def test_sqlite_exercise_survives_reopening(self):

@@ -138,6 +138,12 @@ class RscPipelineEndToEndTests(unittest.TestCase):
                 AssignmentDialog
             )
             self.assertTrue(controller.interpret_selected_evidence())
+            self.assertTrue(
+                controller.functional_assignments_controller.advance()
+            )
+            self.assertTrue(
+                controller.functional_assignments_controller.advance()
+            )
             assignment = (
                 controller.session.rsc_session
                 .list_functional_assignment_evidences_service.execute()[0]

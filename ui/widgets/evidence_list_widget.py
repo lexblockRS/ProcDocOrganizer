@@ -1,7 +1,15 @@
 """Lista e filtro local de evidências."""
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QLabel, QLineEdit, QListWidget, QListWidgetItem, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QComboBox,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
 
 class EvidenceListWidget(QWidget):
@@ -13,14 +21,21 @@ class EvidenceListWidget(QWidget):
         self._statuses = {}
         self.filter_edit = QLineEdit()
         self.filter_edit.setPlaceholderText("Filtrar evidências")
+        self.sort_combo = QComboBox()
+        self.sort_combo.addItem("Mais antigas", "oldest")
+        self.sort_combo.addItem("Mais recentes", "newest")
+        self.sort_combo.addItem("Título A–Z", "title_asc")
+        self.sort_combo.addItem("Título Z–A", "title_desc")
         self.list_widget = QListWidget()
         self.empty_label = QLabel("Nenhuma evidência cadastrada.")
         self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout = QVBoxLayout(self)
         layout.addWidget(self.filter_edit)
+        layout.addWidget(self.sort_combo)
         layout.addWidget(self.list_widget, 1)
         layout.addWidget(self.empty_label)
         self.filter_edit.textChanged.connect(self._rebuild)
+        self.sort_combo.currentIndexChanged.connect(self._rebuild)
         self.list_widget.currentItemChanged.connect(self._selection_changed)
         self._rebuild()
 
@@ -55,7 +70,7 @@ class EvidenceListWidget(QWidget):
         self.list_widget.blockSignals(True)
         try:
             self.list_widget.clear()
-            for evidence in self._evidences:
+            for evidence in self._sorted_evidences():
                 haystack = " ".join((
                     evidence.title, evidence.category or "", evidence.user_notes or "",
                 )).casefold()
@@ -76,6 +91,30 @@ class EvidenceListWidget(QWidget):
             self.list_widget.blockSignals(False)
         self.select_evidence(selected)
         self.empty_label.setVisible(self.list_widget.count() == 0)
+
+    def _sorted_evidences(self):
+        mode = self.sort_combo.currentData()
+        if mode == "newest":
+            return sorted(
+                self._evidences,
+                key=lambda item: item.created_at,
+                reverse=True,
+            )
+        if mode == "title_asc":
+            return sorted(
+                self._evidences,
+                key=lambda item: item.title.casefold(),
+            )
+        if mode == "title_desc":
+            return sorted(
+                self._evidences,
+                key=lambda item: item.title.casefold(),
+                reverse=True,
+            )
+        return sorted(
+            self._evidences,
+            key=lambda item: item.created_at,
+        )
 
     def current_evidence_id(self):
         item = self.list_widget.currentItem()

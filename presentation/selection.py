@@ -27,6 +27,8 @@ class SelectionKind(str, Enum):
     DOCUMENT = "document"
     ACTIVITY = "activity"
     EVIDENCE = "evidence"
+    FUNCTIONAL_ASSIGNMENT = "functional_assignment"
+    FUNCTIONAL_EXERCISE = "functional_exercise"
     REQUIREMENT = "requirement"
 
 

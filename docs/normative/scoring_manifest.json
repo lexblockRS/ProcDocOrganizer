@@ -1,0 +1,146 @@
+{
+  "schema": "decree-13048-scoring-audit/1",
+  "document_id": "BR-DEC-13048-2026",
+  "audit_scope": {
+    "inputs": [
+      "decree_tables.json",
+      "decree_criteria.json",
+      "decree_requirements.json",
+      "decree_traceability.json"
+    ],
+    "code_used_as_source": false,
+    "scoring_implemented": false,
+    "normative_inference_performed": false
+  },
+  "counts": {
+    "tables": 6,
+    "requirements": 6,
+    "criteria": 55,
+    "table_criterion_links": 55,
+    "fixed_value_criteria": 51,
+    "variant_value_criteria": 4,
+    "orphan_criteria": 0,
+    "missing_criterion_references": 0,
+    "tables_without_criteria": 0
+  },
+  "integrity": {
+    "schema_consistent": true,
+    "document_id_consistent": true,
+    "table_ids_unique": true,
+    "requirement_ids_unique": true,
+    "criterion_ids_unique": true,
+    "table_criterion_links_unique": true,
+    "traceability_counts_match": true,
+    "requirement_table_cross_references_complete": true,
+    "text_encoding_issue_detected": true
+  },
+  "scoring_elements": {
+    "fixed_values": {
+      "present": true,
+      "criteria_count": 51,
+      "values": ["1", "1,5", "3", "3,5", "4,5", "7,5", "15", "20", "25", "30"]
+    },
+    "variable_values": {
+      "present": true,
+      "criteria_count": 4,
+      "selector": "role",
+      "variants": ["titular", "substituto"]
+    },
+    "ranges": {
+      "present": false,
+      "details": null
+    },
+    "minimum_limits": {
+      "present": false,
+      "details": null
+    },
+    "maximum_limits": {
+      "present": false,
+      "details": null
+    },
+    "score_cap": {
+      "present": false,
+      "details": null
+    },
+    "accumulation_rules": {
+      "present": false,
+      "details": null
+    },
+    "exclusion_rules": {
+      "present": false,
+      "details": null
+    },
+    "rounding_rules": {
+      "present": false,
+      "details": null
+    },
+    "criterion_dependencies": {
+      "present": false,
+      "details": null
+    }
+  },
+  "applicability": {
+    "classification_basis": "Values and units are structured, but facts, quantities and executable conditions are absent.",
+    "totals": {
+      "FULLY_AUTOMATABLE": 0,
+      "ASSISTED": 55,
+      "HUMAN_ONLY": 0
+    },
+    "by_table": [
+      {
+        "table_id": "DEC13048-TABLE-ANEXO-I",
+        "requirement_id": "DEC13048-ART3-I",
+        "criterion_count": 10,
+        "FULLY_AUTOMATABLE": 0,
+        "ASSISTED": 10,
+        "HUMAN_ONLY": 0
+      },
+      {
+        "table_id": "DEC13048-TABLE-ANEXO-II",
+        "requirement_id": "DEC13048-ART3-II",
+        "criterion_count": 11,
+        "FULLY_AUTOMATABLE": 0,
+        "ASSISTED": 11,
+        "HUMAN_ONLY": 0
+      },
+      {
+        "table_id": "DEC13048-TABLE-ANEXO-III",
+        "requirement_id": "DEC13048-ART3-III",
+        "criterion_count": 3,
+        "FULLY_AUTOMATABLE": 0,
+        "ASSISTED": 3,
+        "HUMAN_ONLY": 0
+      },
+      {
+        "table_id": "DEC13048-TABLE-ANEXO-IV",
+        "requirement_id": "DEC13048-ART3-IV",
+        "criterion_count": 8,
+        "FULLY_AUTOMATABLE": 0,
+        "ASSISTED": 8,
+        "HUMAN_ONLY": 0
+      },
+      {
+        "table_id": "DEC13048-TABLE-ANEXO-V",
+        "requirement_id": "DEC13048-ART3-V",
+        "criterion_count": 4,
+        "FULLY_AUTOMATABLE": 0,
+        "ASSISTED": 4,
+        "HUMAN_ONLY": 0
+      },
+      {
+        "table_id": "DEC13048-TABLE-ANEXO-VI",
+        "requirement_id": "DEC13048-ART3-VI",
+        "criterion_count": 19,
+        "FULLY_AUTOMATABLE": 0,
+        "ASSISTED": 19,
+        "HUMAN_ONLY": 0
+      }
+    ]
+  },
+  "deliverables": [
+    "SCORING_TABLE_AUDIT.md",
+    "SCORING_APPLICABILITY_MATRIX.md",
+    "SCORING_GAPS.md",
+    "scoring_manifest.json"
+  ]
+}

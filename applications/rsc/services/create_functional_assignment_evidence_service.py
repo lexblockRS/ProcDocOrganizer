@@ -56,6 +56,5 @@ class CreateFunctionalAssignmentEvidenceService:
             )
 
         raw = self._assembler.assemble(command)
-        normalized = self._normalizer.normalize(raw)
-        stored = self._repository.save(normalized)
+        stored = self._repository.save(raw)
         return FunctionalAssignmentEvidenceDTO.from_domain(stored)

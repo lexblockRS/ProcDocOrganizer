@@ -16,6 +16,7 @@ from applications.rsc.commands import (
 )
 from applications.rsc.dto import FunctionalAssignmentEvidenceDTO
 from applications.rsc.models import (
+    FunctionalAssignmentEvidenceId,
     FunctionalAssignmentEvidenceStatus,
 )
 from applications.rsc.repositories import (
@@ -102,14 +103,14 @@ def service(existing=(EVIDENCE_ID,)):
 
 
 class CreateFunctionalAssignmentEvidenceServiceTests(unittest.TestCase):
-    def test_creates_normalizes_stores_and_returns_dto(self):
+    def test_creates_raw_stores_and_returns_dto_without_automation(self):
         created, lookup, repository, assembler, normalizer = service()
         request = command()
 
         result = created.execute(request)
 
         self.assertIsInstance(result, FunctionalAssignmentEvidenceDTO)
-        self.assertEqual(result.status, "normalized")
+        self.assertEqual(result.status, "raw")
         self.assertEqual(result.role, "Coordenador Acadêmico")
         self.assertEqual(result.organization, "Instituto Federal")
         self.assertEqual(result.unit, "Campus Centro")
@@ -119,17 +120,13 @@ class CreateFunctionalAssignmentEvidenceServiceTests(unittest.TestCase):
         )
         self.assertEqual(lookup.calls, [EVIDENCE_ID])
         self.assertEqual(assembler.commands, [request])
-        self.assertEqual(len(normalizer.inputs), 1)
-        self.assertIs(
-            normalizer.inputs[0].status,
-            FunctionalAssignmentEvidenceStatus.RAW,
-        )
+        self.assertEqual(normalizer.inputs, [])
 
         stored = repository.list_all()[0]
         self.assertEqual(str(stored.id), result.id)
         self.assertIs(
             stored.status,
-            FunctionalAssignmentEvidenceStatus.NORMALIZED,
+            FunctionalAssignmentEvidenceStatus.RAW,
         )
 
     def test_missing_source_fails_before_assembly_and_storage(self):
@@ -336,6 +333,16 @@ class RscFunctionalAssignmentSessionTests(unittest.TestCase):
                 .create_functional_assignment_evidence_service
                 .execute(command(evidence.id))
             )
+            repository = (
+                session.rsc_session
+                .functional_assignment_evidence_repository
+            )
+            assignment = repository.get_by_id(
+                FunctionalAssignmentEvidenceId.from_string(created.id)
+            )
+            repository.update(
+                assignment.mark_identified().mark_linked()
+            )
             exercise = (
                 session.rsc_session.create_functional_exercise_service.execute(
                     CreateFunctionalExerciseCommand(
@@ -363,7 +370,8 @@ class RscFunctionalAssignmentSessionTests(unittest.TestCase):
                 session.rsc_session.list_functional_exercises_service.execute()
             )
 
-            self.assertEqual(listed, (created,))
+            self.assertEqual(listed[0].id, created.id)
+            self.assertEqual(listed[0].status, "linked")
             self.assertEqual(listed_exercises, (exercise,))
             self.assertEqual(
                 exercise.functional_assignment_evidence_ids,

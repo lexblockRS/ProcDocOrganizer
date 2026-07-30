@@ -13,6 +13,7 @@ from applications.rsc.commands import (
     CreateFunctionalAssignmentEvidenceCommand,
     CreateFunctionalExerciseCommand,
 )
+from applications.rsc.models import FunctionalAssignmentEvidenceId
 from core.application_registry import ApplicationRegistry
 from core.project_manager import ProjectManager
 from core.project_session_factory import ProjectSessionFactory
@@ -79,6 +80,16 @@ class FunctionalActivityFlowTests(unittest.TestCase):
                 )
             )
             self.assignments.append(assignment)
+            assignment_repository = (
+                self.session.rsc_session
+                .functional_assignment_evidence_repository
+            )
+            assignment_domain = assignment_repository.get_by_id(
+                FunctionalAssignmentEvidenceId.from_string(assignment.id)
+            )
+            assignment_repository.update(
+                assignment_domain.mark_identified().mark_linked()
+            )
             self.exercises.append(
                 self.session.rsc_session
                 .create_functional_exercise_service.execute(
@@ -144,24 +155,18 @@ class FunctionalActivityFlowTests(unittest.TestCase):
             (self.exercises[0].id,),
         )
 
-    def test_creates_activity_directly_from_multiple_interpretations(self):
+    def test_rejects_activity_directly_from_interpretations(self):
         controller = ActivitiesController(
             ActivitiesView(), dialog_factory=AcceptedActivityDialog
         )
         self.addCleanup(controller.view.close)
         controller.set_session(self.session)
-        self.assertTrue(controller.create(
+        self.assertFalse(controller.create(
             assignment_ids=tuple(item.id for item in self.assignments)
         ))
-        activity = (
-            self.session.rsc_session.activity_repository.list_all()[0]
-        )
         self.assertEqual(
-            tuple(
-                str(item)
-                for item in activity.functional_assignment_evidence_ids
-            ),
-            tuple(item.id for item in self.assignments),
+            self.session.rsc_session.activity_repository.list_all(),
+            (),
         )
 
     def test_common_project_has_no_activity_creation_flow(self):

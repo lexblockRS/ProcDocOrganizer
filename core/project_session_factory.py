@@ -4,8 +4,9 @@ from models import Project
 from services import (
     DocumentRepository,
     DocumentImportService,
+    DocumentMetadataService,
     DocumentService,
-    EvidenceService,
+    EvidenceManagementService,
     SearchDocumentSourceResolver,
     SQLiteEvidenceRepository,
 )
@@ -49,12 +50,15 @@ class ProjectSessionFactory:
         search_service = SearchService(
             SqliteFtsSearchIndex(database_path)
         )
-        evidence_service = EvidenceService(
+        evidence_service = EvidenceManagementService(
             SQLiteEvidenceRepository(project),
             SearchDocumentSourceResolver(project),
         )
         document_import_service = DocumentImportService(
             project, document_repository
+        )
+        document_metadata_service = DocumentMetadataService(
+            document_repository
         )
         session = ProjectSession(
             project=project,
@@ -68,6 +72,7 @@ class ProjectSessionFactory:
             application=application,
             rsc_session=None,
         )
+        session.bind_document_metadata_service(document_metadata_service)
         runtime = session.platform_session.application_runtime
         runtime.prepare(session.platform_session.session_context)
         application_session = runtime.create_session(

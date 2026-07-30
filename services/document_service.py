@@ -129,6 +129,7 @@ class DocumentService:
                 if hasattr(document.status, "value")
                 else document.status
             ),
+            ocr_used=bool(result and result.ocr_used),
         )
 
     def _page(self, document, result, page) -> DocumentPageSummary:

@@ -33,6 +33,7 @@ class ActivityDetailsProjection:
     exercise_ids: tuple[str, ...]
     evidence_count: int
     exercise_count: int
+    state_options: tuple[tuple[str, str], ...] = ()
     related_interpretations: tuple["RelatedInterpretationProjection", ...] = ()
     related_exercises: tuple["RelatedExerciseProjection", ...] = ()
 

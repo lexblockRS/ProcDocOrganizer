@@ -28,6 +28,7 @@ class DocumentSummary:
     file_size: int = 0
     imported_at: str = ""
     status: str = "imported"
+    ocr_used: bool = False
 
 
 @dataclass(frozen=True)

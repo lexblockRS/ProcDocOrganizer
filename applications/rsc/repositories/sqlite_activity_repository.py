@@ -97,6 +97,29 @@ class SQLiteActivityRepository:
                 "Falha ao listar atividades."
             ) from exc
 
+    def delete(self, activity_id: str) -> Activity | None:
+        activity = self.get(activity_id)
+        if activity is None:
+            return None
+        try:
+            with ProjectDatabase(self.database_path) as database:
+                with database.transaction() as connection:
+                    result = connection.execute(
+                        f"DELETE FROM {self.TABLE} WHERE activity_id = ?",
+                        (activity.activity_id,),
+                    )
+                    if result.rowcount != 1:
+                        raise ActivityPersistenceError(
+                            "A atividade não existe."
+                        )
+            return activity
+        except ActivityPersistenceError:
+            raise
+        except sqlite3.Error as exc:
+            raise ActivityPersistenceError(
+                "Falha ao remover atividade."
+            ) from exc
+
     def _store(self, activity: Activity, *, allow_update: bool) -> None:
         if not isinstance(activity, Activity):
             raise TypeError("activity deve ser Activity.")

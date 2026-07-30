@@ -68,8 +68,8 @@ Descoberta de documentos e evidências
     ↓
 Evidence documental rastreável
     ↓
-FunctionalAssignmentEvidence
-    ↓ normalização e resolução de identidade/atividade
+FunctionalAssignmentEvidence (AR)
+    ↓ identificação e vínculo explícitos
 FunctionalExercise
     ↓ relacionado à lembrança
 Activity comprovada
@@ -226,7 +226,8 @@ deve fundi-las implicitamente.
 
 ### 5.4 Evidence
 
-**Situação:** consolidada e implementada, com dois níveis intencionais.
+**Situação:** consolidada e implementada como Aggregate Root do contexto de
+conhecimento documental, com níveis de Evidence intencionalmente distintos.
 
 `Evidence` é uma afirmação documental rastreável. Possui identidade, referência
 opaca ao documento, página opcional, título, trecho, notas, categoria, datas e
@@ -238,8 +239,12 @@ papel, organização, unidade, referência administrativa, datas e estado do
 pipeline:
 
 ```text
-RAW → NORMALIZED → IDENTIFIED → LINKED
+RAW → IDENTIFIED → LINKED
 ```
+
+`NORMALIZED` permanece reconhecido apenas para reidratação compatível de
+registros legados e pode avançar para `IDENTIFIED`; não integra o fluxo atual
+de criação nem exige uma etapa automática.
 
 `RscEvidence`, no domínio normativo, relaciona atividade e um ou mais
 documentos e possui estado proposto, aceito, rejeitado ou em revisão. A ponte
@@ -257,6 +262,23 @@ Regras:
 - uma evidência histórica não é apagada automaticamente quando a fonte fica
   indisponível;
 - associações são explícitas e não transferem propriedade.
+
+`Evidence` controla exclusivamente seu próprio ciclo de criação, edição e
+remoção autorizada. Sua identidade é o UUID da Evidence; a identidade
+documental é uma referência externa opaca e não transfere a propriedade do
+`Document`. Alterações passam por casos de uso ou serviços de aplicação que
+invocam o comportamento da entidade e persistem o resultado por
+`EvidenceRepository`. Nem `Document`, `Activity`,
+`FunctionalAssignmentEvidence`, `FunctionalExercise` nem `RscEvidence` podem
+modificar uma Evidence diretamente.
+
+A fronteira transacional do agregado termina na própria Evidence. Uma
+transação pode validar a existência ou a disponibilidade de sua referência
+documental, mas não modifica `Document`, `Activity`,
+`FunctionalAssignmentEvidence`, `FunctionalExercise` ou `RscEvidence`.
+Associações com outros agregados são coordenadas por casos de uso próprios e
+não ampliam essa fronteira. A política de autorização e retenção para remoção
+quando existirem referências permanece uma decisão separada.
 
 ### 5.5 RSC Criterion
 
@@ -352,13 +374,15 @@ reprodutibilidade, mas essa necessidade não foi decidida. Até lá, Report não
 deve ser modelado como entidade ou Aggregate Root. O Reports Workspace consome
 queries e DTOs públicos e não lê outros widgets.
 
-## 6. Entidades auxiliares consolidadas
+## 6. Entidades consolidadas
 
 ### 6.1 FunctionalAssignmentEvidence
 
 Afirmação estruturada sobre possível exercício funcional, derivada de
-Evidence. É imutável, possui identidade UUID e avança sequencialmente por
-normalização, identificação e vínculo.
+Evidence. É imutável, possui identidade UUID e avança explicitamente por
+identificação e vínculo. É Aggregate Root: possui ciclo de vida, invariantes,
+Repository e fronteira transacional próprios. A Evidence de origem é uma
+referência obrigatória a outro agregado, não uma parte possuída.
 
 ### 6.2 FunctionalExercise
 
@@ -424,13 +448,48 @@ Activity possui identidade, invariantes, transições e relações próprias e �
 persistida por repository dedicado. Controla somente sua descrição, estado e
 associações. Não controla Evidence nem FunctionalExercise.
 
+#### Evidence
+
+`Evidence` é a raiz do agregado de conhecimento documental. Possui identidade
+UUID, invariantes editoriais e temporais, referência documental opaca e ciclo
+de vida independente. `EvidenceRepository` é sua porta de persistência e cada
+operação de criação, consulta, atualização ou remoção autorizada atua sobre
+uma Evidence por vez.
+
+O agregado preserva como invariantes: identidade válida e estável; identidade
+documental obrigatória; página positiva quando informada; título obrigatório
+e limitado; textos opcionais normalizados; intervalo de datas válido;
+timestamps válidos e não regressivos; e referência histórica preservada
+quando a fonte fica indisponível. Disponibilidade física da fonte é verificada
+pela aplicação através de uma porta e não altera o `Document`.
+
+#### FunctionalAssignmentEvidence
+
+`FunctionalAssignmentEvidence` é a raiz do agregado de interpretação
+funcional. Sua identidade UUID representa uma interpretação funcional
+individual e não apenas a chave de uma associação: a entidade contém dados
+próprios, pode existir antes de qualquer `Activity` ou `FunctionalExercise` e
+percorre, por ação explícita, o pipeline `RAW → IDENTIFIED → LINKED`.
+
+Sua criação é coordenada pelo caso de uso de criação, que exige uma referência
+válida à `Evidence` de origem. Atualizações, transições e remoção são
+coordenadas pelo serviço de gerenciamento e persistidas por
+`FunctionalAssignmentEvidenceRepository`. O Workspace atua somente como
+cliente desses serviços.
+
+A fronteira transacional termina na própria
+`FunctionalAssignmentEvidence`. Nenhuma operação desse agregado modifica
+`Evidence`, `Activity` ou `FunctionalExercise`; esses conceitos são
+referenciados por identidade e mantêm ciclos de vida independentes. A
+exclusão remove somente a interpretação funcional e não produz remoção em
+cascata.
+
 ### 7.2 Agregados operacionais não formalizados
 
-Document e Evidence possuem identidade e ciclo independente, repositories e
-operações próprias. Na prática funcionam como unidades de consistência dos
-contextos documental e de conhecimento. A documentação, porém, ainda não os
-declarou formalmente Aggregate Roots. Esta consolidação não antecipa essa
-decisão.
+Document possui identidade e ciclo independente, repository e operações
+próprias. Na prática funciona como unidade de consistência do contexto
+documental. A documentação, porém, ainda não o declarou formalmente Aggregate
+Root. Esta consolidação não antecipa essa decisão.
 
 ### 7.3 Não são Aggregate Roots
 
@@ -511,7 +570,7 @@ Document
 Evidence
     └── origina 0..* FunctionalAssignmentEvidence
 
-FunctionalAssignmentEvidence
+FunctionalAssignmentEvidence (AR)
     ├── refere 1 Pessoa indicada
     ├── preserva 1 Evidence de origem
     └── sustenta 0..* FunctionalExercise
@@ -639,13 +698,13 @@ dependem de contrato.
 
 ### 11.3 Fatos de Evidence
 
-| Evento conceitual | Significado consolidado |
-|---|---|
-| `EvidenceCreated` | Uma afirmação rastreável foi registrada. |
-| `EvidenceUpdated` | Uma nova versão editorial foi persistida. |
-| `EvidenceLinked` | Uma associação explícita foi estabelecida. |
-| `EvidenceNormalized` | A representação avançou de RAW para NORMALIZED sem mudar significado. |
-| `EvidenceIdentityResolved` | Uma decisão auditável de identidade foi produzida. |
+| Evento conceitual | Responsável | Significado consolidado |
+|---|---|---|
+| `EvidenceCreated` | Evidence | Uma afirmação rastreável foi registrada. |
+| `EvidenceUpdated` | Evidence | Uma nova versão editorial foi persistida. |
+| `EvidenceLinked` | Associação coordenada pela aplicação | Uma associação explícita foi estabelecida sem transferir propriedade. |
+| `EvidenceNormalized` | FunctionalAssignmentEvidence | A interpretação avançou de RAW para NORMALIZED sem mudar significado. |
+| `EvidenceIdentityResolved` | FunctionalAssignmentEvidence | Uma decisão auditável de identidade foi produzida. |
 
 Associação e transições existem no domínio; o mecanismo de publicação desses
 fatos não foi definido.
@@ -833,7 +892,7 @@ substituído.
 1. Qual representação é a API canônica de Project RSC?
 2. RscProcess e projeto físico compartilham identidade?
 3. Qual catálogo normativo pertence ao agregado e como é versionado?
-4. Document e Evidence serão formalmente Aggregate Roots?
+4. Document será formalmente Aggregate Root?
 5. Quais transições de estado do projeto são oficiais?
 
 ### 16.2 Pessoa e instituição

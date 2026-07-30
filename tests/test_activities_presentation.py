@@ -88,6 +88,18 @@ class ActivitiesPresentationTests(unittest.TestCase):
         self.assertEqual(result.items[1].state_label, "Comprovada")
         self.assertEqual(result.items[1].evidence_count, 1)
         self.assertEqual(result.items[1].exercise_count, 1)
+        self.assertEqual(
+            result.selected_activity.state_options,
+            (
+                ("lembrada", "Lembrada"),
+                ("em_investigacao", "Em investigação"),
+                (
+                    "parcialmente_comprovada",
+                    "Parcialmente comprovada",
+                ),
+                ("comprovada", "Comprovada"),
+            ),
+        )
 
     def test_valid_selection_is_preserved_and_invalid_selects_first(self):
         self.repository.save(Activity("a", "Primeira"))

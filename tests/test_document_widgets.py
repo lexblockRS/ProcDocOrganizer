@@ -2,6 +2,7 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import unittest
+from dataclasses import replace
 
 from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
@@ -24,6 +25,7 @@ def summary(identity=SHA, name="Portaria.pdf", pages=3, status="processed"):
         identity, SHA if identity == SHA else "", name,
         "documents/Meu  Documento.pdf", "portaria", "2026-01-01", pages,
         status, DocumentAvailability.AVAILABLE, status == "processed",
+        imported_at="2026-01-01",
     )
 
 
@@ -50,13 +52,18 @@ class DocumentWidgetTests(unittest.TestCase):
         selected = []
         widget.document_selected.connect(selected.append)
         widget.set_catalog((summary(),))
-        text = widget.list_widget.item(0).text()
-        self.assertIn("Portaria.pdf", text)
-        self.assertIn("portaria", text)
-        self.assertIn("3 páginas", text)
-        self.assertIn("Processado", text)
-        self.assertNotIn(SHA, text)
-        self.assertNotIn("documents/", text)
+        row = widget.list_widget.item(0)
+        self.assertEqual(
+            [row.text(column) for column in range(3)],
+            ["Portaria.pdf", "portaria", "2026-01-01"],
+        )
+        visible_text = " ".join(
+            row.text(column) for column in range(3)
+        )
+        self.assertNotIn(SHA, visible_text)
+        self.assertNotIn("documents/", visible_text)
+        self.assertNotIn("páginas", visible_text)
+        self.assertNotIn("Processado", visible_text)
         widget.list_widget.setCurrentRow(0)
         self.assertEqual(selected, [SHA])
         widget.close()
@@ -73,10 +80,40 @@ class DocumentWidgetTests(unittest.TestCase):
         self.assertIsNone(widget.current_identity())
         widget.close()
 
+    def test_catalog_uses_qt_sorting_for_all_visible_columns(self):
+        widget = DocumentListWidget()
+        items = (
+            replace(
+                summary("documents/B.pdf", "B.pdf"),
+                document_type="ofício",
+                imported_at="2026-02-01",
+            ),
+            replace(
+                summary(SHA, "A.pdf"),
+                document_type="portaria",
+                imported_at="2026-01-01",
+            ),
+        )
+        widget.set_catalog(items)
+        tree = widget.list_widget
+        tree.sortItems(0, Qt.SortOrder.AscendingOrder)
+        self.assertEqual(tree.item(0).text(0), "A.pdf")
+        tree.sortItems(1, Qt.SortOrder.AscendingOrder)
+        self.assertEqual(tree.item(0).text(1), "ofício")
+        tree.sortItems(2, Qt.SortOrder.DescendingOrder)
+        self.assertEqual(tree.item(0).text(2), "2026-02-01")
+        widget.close()
+
     def test_metadata_values_missing_fields_unprocessed_and_clear(self):
         widget = DocumentMetadataWidget()
         widget.set_details(details())
         self.assertEqual(widget.values["name"].text(), "Portaria.pdf")
+        self.assertEqual(
+            widget.values["path"].text(),
+            "documents/Meu  Documento.pdf",
+        )
+        self.assertEqual(widget.values["hash"].text(), SHA)
+        self.assertEqual(widget.values["imported"].text(), "2026-01-01")
         self.assertEqual(widget.values["ocr"].text(), "Sim")
         self.assertEqual(widget.values["source"].text(), "mixed")
         widget.set_details(details(False))

@@ -78,6 +78,11 @@ class Activity:
             ActivityState.UNDER_INVESTIGATION,
         )
 
+    def update_description(self, description: str) -> "Activity":
+        """Atualiza a descrição preservando identidade, estado e relações."""
+
+        return replace(self, description=description)
+
     def relate_assignment_evidence(
         self,
         evidence_id: FunctionalAssignmentEvidenceId,

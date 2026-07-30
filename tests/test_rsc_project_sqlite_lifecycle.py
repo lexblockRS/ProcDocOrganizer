@@ -11,6 +11,7 @@ from applications.rsc.commands import (
     CreateFunctionalAssignmentEvidenceCommand,
     CreateFunctionalExerciseCommand,
 )
+from applications.rsc.models import FunctionalAssignmentEvidenceId
 from applications.rsc.repositories import (
     InMemoryFunctionalAssignmentEvidenceRepository,
     SQLiteFunctionalAssignmentEvidenceRepository,
@@ -80,6 +81,23 @@ def create_rsc_data(session, evidence, marker):
                 start_date=date(2024, 1, 1),
             )
         )
+    )
+    assignment_repository = (
+        session.rsc_session.functional_assignment_evidence_repository
+    )
+    domain_assignment = assignment_repository.get_by_id(
+        FunctionalAssignmentEvidenceId.from_string(assignment.id)
+    )
+    assignment_repository.update(
+        domain_assignment.mark_identified().mark_linked()
+    )
+    assignment = next(
+        item
+        for item in (
+            session.rsc_session
+            .list_functional_assignment_evidences_service.execute()
+        )
+        if item.id == assignment.id
     )
     exercise = session.rsc_session.create_functional_exercise_service.execute(
         CreateFunctionalExerciseCommand(

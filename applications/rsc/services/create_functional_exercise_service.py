@@ -89,9 +89,9 @@ class CreateFunctionalExerciseService:
                     f"Evidência de atribuição funcional não encontrada: "
                     f"{reference}."
                 )
-            if (
-                evidence.status
-                is not FunctionalAssignmentEvidenceStatus.NORMALIZED
+            if evidence.status not in (
+                FunctionalAssignmentEvidenceStatus.NORMALIZED,
+                FunctionalAssignmentEvidenceStatus.LINKED,
             ):
                 raise IncompatibleFunctionalAssignmentEvidenceError(
                     "O fluxo atual aceita apenas evidências de atribuição "

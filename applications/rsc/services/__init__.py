@@ -18,6 +18,14 @@ from .create_project_service import CreateProjectService
 from .functional_assignment_normalizer import (
     FunctionalAssignmentNormalizer,
 )
+from .functional_assignment_management_service import (
+    FunctionalAssignmentManagementError,
+    FunctionalAssignmentManagementService,
+)
+from .functional_exercise_management_service import (
+    FunctionalExerciseManagementError,
+    FunctionalExerciseManagementService,
+)
 from .list_functional_exercises_service import (
     ListFunctionalExercisesService,
 )
@@ -25,6 +33,10 @@ from .list_functional_assignment_evidences_service import (
     ListFunctionalAssignmentEvidencesService,
 )
 from .activity_service import RscActivityService
+from .activity_management_service import (
+    ActivityManagementError,
+    ActivityManagementService,
+)
 from .document_service import RscDocumentService
 from .document_health_service import DocumentHealthService
 from .evidence_service import RscEvidenceService
@@ -42,9 +54,15 @@ __all__ = [
     "IncompatibleFunctionalAssignmentEvidenceError",
     "CreateProjectService",
     "FunctionalAssignmentNormalizer",
+    "FunctionalAssignmentManagementError",
+    "FunctionalAssignmentManagementService",
+    "FunctionalExerciseManagementError",
+    "FunctionalExerciseManagementService",
     "ListFunctionalAssignmentEvidencesService",
     "ListFunctionalExercisesService",
     "RscActivityService",
+    "ActivityManagementError",
+    "ActivityManagementService",
     "RscDocumentService",
     "DocumentHealthService",
     "RscEvidenceService",

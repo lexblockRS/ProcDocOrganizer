@@ -32,3 +32,13 @@ class FunctionalAssignmentEvidenceRepository(Protocol):
     ) -> tuple[FunctionalAssignmentEvidence, ...]:
         """Retorna todas as atribuições em ordem de inserção."""
         ...
+
+    def update(
+        self,
+        evidence: FunctionalAssignmentEvidence,
+    ) -> FunctionalAssignmentEvidence: ...
+
+    def delete(
+        self,
+        evidence_id: FunctionalAssignmentEvidenceId,
+    ) -> FunctionalAssignmentEvidence | None: ...

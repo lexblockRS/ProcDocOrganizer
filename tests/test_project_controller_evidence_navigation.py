@@ -22,6 +22,9 @@ class WindowSpy:
     def __init__(self, calls):
         self.calls = calls
         self.search_workspace = SimpleNamespace(show_message=lambda _message: None)
+        self.evidence_workspace = SimpleNamespace(
+            show_message=lambda _message: None
+        )
 
     def show_evidences(self):
         self.calls.append("navigate")
@@ -93,8 +96,8 @@ class ProjectControllerEvidenceNavigationTests(unittest.TestCase):
             [
                 "can_leave",
                 "refresh",
-                ("navigate_request", request),
                 "navigate_documents",
+                ("navigate_request", request),
             ],
         )
 
@@ -128,8 +131,8 @@ class ProjectControllerEvidenceNavigationTests(unittest.TestCase):
             [
                 "can_leave",
                 "refresh",
-                ("navigate_request", request),
                 "navigate_documents",
+                ("navigate_request", request),
             ],
         )
 

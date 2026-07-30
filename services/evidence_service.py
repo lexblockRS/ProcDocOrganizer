@@ -43,7 +43,7 @@ class EvidenceSourceStatus(str, Enum):
     UNAVAILABLE = "unavailable"
 
 
-class EvidenceService:
+class EvidenceManagementService:
     """Controla identidade, tempo e regras de aplicação das evidências."""
 
     def __init__(
@@ -232,3 +232,7 @@ class EvidenceService:
         raise EvidenceServiceError(
             "Não foi possível concluir a operação de evidência."
         ) from exc
+
+
+# Nome público histórico preservado para consumidores anteriores.
+EvidenceService = EvidenceManagementService

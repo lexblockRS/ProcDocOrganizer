@@ -111,6 +111,10 @@ class ActivitiesService:
                 activity.functional_assignment_evidence_ids
             ),
             exercise_count=len(activity.functional_exercise_ids),
+            state_options=tuple(
+                (state.value, self.STATE_LABELS[state])
+                for state in ActivityState
+            ),
             related_interpretations=self._related(activity),
             related_exercises=self._related_exercises(activity),
         )

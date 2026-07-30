@@ -10,7 +10,7 @@ from .base_dialog import BaseDialog
 
 
 class FunctionalAssignmentDialog(BaseDialog):
-    def __init__(self, evidence, parent=None):
+    def __init__(self, evidence, parent=None, initial=None):
         super().__init__(parent)
         self.setWindowTitle("Interpretar funcionalmente")
         self.resize(620, 440)
@@ -51,6 +51,12 @@ class FunctionalAssignmentDialog(BaseDialog):
         for name, field in self.fields.items():
             form.addRow(labels[name], field)
             field.textChanged.connect(self._validate)
+        if initial is not None:
+            for name, field in self.fields.items():
+                value = getattr(initial, name, None)
+                if isinstance(value, date):
+                    value = value.isoformat()
+                field.setText(str(value) if value is not None else "")
         layout.addLayout(form)
         self.buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok

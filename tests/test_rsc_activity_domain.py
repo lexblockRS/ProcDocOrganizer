@@ -27,6 +27,24 @@ def activity(**changes):
 
 
 class ActivityTests(unittest.TestCase):
+    def test_updates_description_preserving_aggregate_state_and_relations(self):
+        original = activity().start_investigation()
+
+        updated = original.update_description("  Nova   descrição  ")
+
+        self.assertEqual(updated.description, "Nova descrição")
+        self.assertEqual(updated.activity_id, original.activity_id)
+        self.assertIs(updated.state, original.state)
+        self.assertEqual(
+            updated.functional_assignment_evidence_ids,
+            original.functional_assignment_evidence_ids,
+        )
+        self.assertEqual(
+            updated.functional_exercise_ids,
+            original.functional_exercise_ids,
+        )
+        self.assertIsNot(updated, original)
+
     def test_creates_remembered_activity_without_relations(self):
         item = activity()
 

@@ -29,6 +29,10 @@ class EvidenceWorkspace(QWidget):
         self.save_button = QPushButton("Salvar")
         self.cancel_button = QPushButton("Cancelar")
         self.delete_button = QPushButton("Excluir")
+        self.delete_button.setToolTip(
+            "Remoção indisponível enquanto a política de retenção "
+            "não estiver consolidada"
+        )
         self.refresh_button = QPushButton("Atualizar lista")
         self.interpret_button = QPushButton("Interpretar funcionalmente")
         self.open_document_button = QPushButton("Abrir documento")
@@ -55,10 +59,13 @@ class EvidenceWorkspace(QWidget):
         self.list_widget = EvidenceListWidget()
         self.editor_widget = EvidenceEditorWidget()
         self.source_status_widget = EvidenceSourceStatusWidget()
+        source_group = QGroupBox("Origem documental")
+        source_layout = QVBoxLayout(source_group)
+        source_layout.addWidget(self.source_status_widget)
         editor_group = QGroupBox("Editor")
         editor_layout = QVBoxLayout(editor_group)
         editor_layout.addWidget(self.editor_widget, 1)
-        editor_layout.addWidget(self.source_status_widget)
+        editor_layout.addWidget(source_group)
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.addWidget(self.list_widget)
         splitter.addWidget(editor_group)
@@ -139,9 +146,15 @@ class EvidenceWorkspace(QWidget):
         save_enabled,
         cancel_enabled,
         delete_enabled,
+        selected=None,
     ) -> None:
+        selected = delete_enabled if selected is None else selected
         self.editor_widget.set_draft(draft, identity_editable)
-        self.source_status_widget.set_status(source_status)
+        self.source_status_widget.set_origin(
+            draft,
+            source_status,
+            getattr(source_status, "checked_at", None),
+        )
         self.editor_widget.set_editable(
             editor_enabled, identity_editable
         )
@@ -149,11 +162,11 @@ class EvidenceWorkspace(QWidget):
         self.cancel_button.setEnabled(cancel_enabled)
         self.delete_button.setEnabled(delete_enabled)
         self.new_button.setEnabled(True)
-        self.interpret_button.setEnabled(delete_enabled)
+        self.interpret_button.setEnabled(selected)
         source_value = getattr(source_status, "value", source_status)
         self._source_available = source_value == "available"
         self.open_document_button.setEnabled(
-            delete_enabled and self._source_available
+            selected and self._source_available
         )
         self.dirty_label.setText("Alterações não salvas" if dirty else "")
 

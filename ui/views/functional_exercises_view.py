@@ -20,6 +20,9 @@ class FunctionalExercisesView(QWidget):
     open_assignment_requested = Signal(str)
     refresh_requested = Signal()
     create_activity_requested = Signal()
+    new_requested = Signal()
+    edit_requested = Signal()
+    delete_requested = Signal()
 
     def __init__(self):
         super().__init__()
@@ -69,6 +72,14 @@ class FunctionalExercisesView(QWidget):
         self.refresh_button = QPushButton("Atualizar")
         self.refresh_button.clicked.connect(self.refresh_requested)
         actions = QHBoxLayout()
+        self.new_button = QPushButton("Novo exercício")
+        self.edit_button = QPushButton("Editar")
+        self.delete_button = QPushButton("Excluir")
+        self.new_button.clicked.connect(self.new_requested)
+        self.edit_button.clicked.connect(self.edit_requested)
+        self.delete_button.clicked.connect(self.delete_requested)
+        self.edit_button.setEnabled(False)
+        self.delete_button.setEnabled(False)
         self.create_activity_button = QPushButton(
             "Nova atividade funcional"
         )
@@ -76,6 +87,9 @@ class FunctionalExercisesView(QWidget):
         self.create_activity_button.clicked.connect(
             self.create_activity_requested
         )
+        actions.addWidget(self.new_button)
+        actions.addWidget(self.edit_button)
+        actions.addWidget(self.delete_button)
         actions.addWidget(self.create_activity_button)
         actions.addWidget(self.open_assignment_button)
         actions.addWidget(self.refresh_button)
@@ -103,6 +117,7 @@ class FunctionalExercisesView(QWidget):
 
     def set_items(self, items):
         self.items = tuple(items)
+        self.new_button.setEnabled(True)
         self.list_widget.blockSignals(True)
         self.list_widget.clear()
         for item in self.items:
@@ -142,7 +157,11 @@ class FunctionalExercisesView(QWidget):
             for label in self.details.values():
                 label.clear()
             self.open_assignment_button.setEnabled(False)
+            self.edit_button.setEnabled(False)
+            self.delete_button.setEnabled(False)
             return
+        self.edit_button.setEnabled(True)
+        self.delete_button.setEnabled(True)
         end = exercise.end_date.isoformat() if exercise.end_date else "aberto"
         values = {
             "person": exercise.person_id,
@@ -192,6 +211,9 @@ class FunctionalExercisesView(QWidget):
         self.set_details(None, ())
         self.show_message("Nenhum projeto RSC aberto.")
         self.create_activity_button.setEnabled(False)
+        self.new_button.setEnabled(False)
+        self.edit_button.setEnabled(False)
+        self.delete_button.setEnabled(False)
 
     def _selected(self, current, _previous):
         if current is not None:
@@ -207,6 +229,7 @@ class FunctionalExercisesView(QWidget):
             )
 
     def _selection_changed(self):
-        self.create_activity_button.setEnabled(
-            bool(self.list_widget.selectedItems())
-        )
+        has_selection = bool(self.list_widget.selectedItems())
+        self.create_activity_button.setEnabled(has_selection)
+        self.edit_button.setEnabled(has_selection)
+        self.delete_button.setEnabled(has_selection)

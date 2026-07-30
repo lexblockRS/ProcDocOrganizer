@@ -1,0 +1,71 @@
+{
+  "schema": "decree-13048-normative-api-specification/1",
+  "kind": "conceptual-read-only-api",
+  "name": "Decree13048NormativeModel",
+  "document_id": "BR-DEC-13048-2026",
+  "inputs": [
+    "decree_articles.json",
+    "decree_requirements.json",
+    "decree_criteria.json",
+    "decree_tables.json",
+    "decree_documents.json",
+    "decree_traceability.json"
+  ],
+  "contracts": [
+    {"name":"RscRequirementView","source_collection":"requirements","identity_field":"id"},
+    {"name":"RscCriterionView","source_collection":"criteria","identity_field":"id"},
+    {"name":"RscAnnexTableView","source_collection":"tables","identity_field":"id"},
+    {"name":"AcceptedDocumentView","source_collection":"document_types","identity_field":"id"},
+    {"name":"LegalProvisionView","source_collection":"articles","identity_field":"id"},
+    {"name":"LegalTraceabilityView","source_collection":"all","identity_field":"id"}
+  ],
+  "operations": [
+    {"name":"findRequirement","parameters":[{"name":"requirementId","type":"stable-id"}],"returns":"RscRequirementView?","source":"decree_requirements.json","mutates":false},
+    {"name":"findCriterion","parameters":[{"name":"criterionId","type":"stable-id"}],"returns":"RscCriterionView?","source":"decree_criteria.json","mutates":false},
+    {"name":"criteriaOfRequirement","parameters":[{"name":"requirementId","type":"stable-id"}],"returns":"ordered<RscCriterionView>","source":"requirement.table -> table.criterion_ids -> criteria.id","mutates":false},
+    {"name":"findTable","parameters":[{"name":"tableId","type":"stable-id"}],"returns":"RscAnnexTableView?","source":"decree_tables.json","mutates":false},
+    {"name":"tableOfRequirement","parameters":[{"name":"requirementId","type":"stable-id"}],"returns":"RscAnnexTableView?","source":"requirement.table -> table.table","mutates":false},
+    {"name":"tableOfCriterion","parameters":[{"name":"criterionId","type":"stable-id"}],"returns":"RscAnnexTableView?","source":"criterion.table -> table.table","mutates":false},
+    {"name":"acceptedDocuments","parameters":[],"returns":"ordered<AcceptedDocumentView>","source":"decree_documents.json","mutates":false},
+    {"name":"findAcceptedDocument","parameters":[{"name":"documentTypeId","type":"stable-id"}],"returns":"AcceptedDocumentView?","source":"decree_documents.json","mutates":false},
+    {"name":"traceability","parameters":[{"name":"objectId","type":"stable-id"}],"returns":"LegalTraceabilityView?","source":"object provenance fields and decree_traceability.json","mutates":false},
+    {"name":"relatedArticles","parameters":[{"name":"objectId","type":"stable-id"}],"returns":"ordered<LegalProvisionView>","source":"explicit structured references","mutates":false},
+    {"name":"restrictions","parameters":[{"name":"reference","type":"stable-id-or-legal-reference"}],"returns":"ordered<LegalProvisionView>","source":"explicit structured references only","mutates":false},
+    {"name":"observations","parameters":[{"name":"objectId","type":"stable-id"}],"returns":"text-or-null","source":"object.notes","mutates":false}
+  ],
+  "invariants": [
+    "read-only model",
+    "no runtime normative mutation",
+    "immutable and globally unique object identifiers",
+    "mandatory traceability",
+    "no duplicate objects or operation names",
+    "relationships must resolve to existing identifiers",
+    "normative values remain textual",
+    "null values are never inferred",
+    "criterion order follows annex item order"
+  ],
+  "integrity_conditions": [
+    "all inputs share document_id BR-DEC-13048-2026",
+    "requirement table references resolve",
+    "table criterion_ids resolve",
+    "criterion annex, table and inciso agree with its requirement",
+    "traceability cross references resolve",
+    "every exposed record has legal provenance"
+  ],
+  "excluded_capabilities": [
+    "engine",
+    "scoring",
+    "evaluation",
+    "activity matching",
+    "criterion result",
+    "requirement result",
+    "ranking",
+    "runtime persistence"
+  ],
+  "limitations": [
+    "restrictions are not a standalone source collection",
+    "related articles are limited to explicit structured references",
+    "notes equal null when no observation was structured",
+    "the open document category in article 4 does not enumerate future ministerial acts"
+  ]
+}

@@ -6,11 +6,14 @@ from PySide6.QtWidgets import (
     QLabel,
     QListWidget,
     QListWidgetItem,
+    QComboBox,
     QProgressBar,
     QPushButton,
     QScrollArea,
     QSplitter,
     QStackedWidget,
+    QToolBar,
+    QLineEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -28,13 +31,27 @@ class ActivitiesView(QWidget):
     activity_selected = Signal(str)
     open_assignment_requested = Signal(str)
     open_exercise_requested = Signal(str)
+    create_requested = Signal()
+    save_requested = Signal(str, str)
+    cancel_requested = Signal()
+    delete_requested = Signal()
 
     def __init__(self):
         super().__init__()
+        self._projection = ActivitiesProjection()
+        self._editing = False
         self._build_ui()
         self.set_projection(ActivitiesProjection())
 
     def _build_ui(self):
+        self.toolbar = QToolBar("Activities", self)
+        self.toolbar.setObjectName("activitiesToolbar")
+        self.create_action = self.toolbar.addAction("Nova Activity")
+        self.edit_action = self.toolbar.addAction("Editar")
+        self.delete_action = self.toolbar.addAction("Excluir")
+        self.create_action.triggered.connect(self.create_requested)
+        self.edit_action.triggered.connect(self.begin_edit)
+        self.delete_action.triggered.connect(self.delete_requested)
         self.state_stack = QStackedWidget()
         self.no_project_page = self._state_page(
             "Atividades",
@@ -76,10 +93,9 @@ class ActivitiesView(QWidget):
         self.empty_page.layout().insertWidget(1, self.empty_project_label)
         self.new_activity_button = QPushButton("Nova atividade funcional")
         self.new_activity_button.setEnabled(False)
-        self.new_activity_button.setToolTip(
-            "Disponível na próxima etapa"
-        )
+        self.new_activity_button.setToolTip("Criar uma Activity")
         self.new_activity_button.setAccessibleName("Nova atividade")
+        self.new_activity_button.clicked.connect(self.create_requested)
         self.empty_page.layout().addWidget(
             self.new_activity_button,
             alignment=Qt.AlignmentFlag.AlignCenter,
@@ -110,6 +126,7 @@ class ActivitiesView(QWidget):
             self.state_stack.addWidget(page)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.toolbar)
         layout.addWidget(self.state_stack)
 
     @staticmethod
@@ -186,6 +203,39 @@ class ActivitiesView(QWidget):
         details_title.setFont(details_font)
         self.details_description_label = QLabel()
         self.details_description_label.setWordWrap(True)
+        self.description_editor = QLineEdit()
+        self.description_editor.setPlaceholderText(
+            "Descrição da Activity"
+        )
+        self.description_editor.hide()
+        self.state_editor = QComboBox()
+        self.state_editor.setAccessibleName("Estado da Activity")
+        self.state_editor.hide()
+        self.unsaved_label = QLabel("Alterações não salvas")
+        self.unsaved_label.setStyleSheet(
+            "color: #9a6700; font-weight: bold;"
+        )
+        self.unsaved_label.hide()
+        self.save_button = QPushButton("Salvar")
+        self.cancel_button = QPushButton("Cancelar")
+        self.save_button.hide()
+        self.cancel_button.hide()
+        self.save_button.clicked.connect(
+            lambda: self.save_requested.emit(
+                self.description_editor.text(),
+                str(
+                    self.state_editor.currentData()
+                    or self._projection.selected_activity.state
+                ),
+            )
+        )
+        self.cancel_button.clicked.connect(self.cancel_requested)
+        self.description_editor.textChanged.connect(
+            self._draft_changed
+        )
+        self.state_editor.currentIndexChanged.connect(
+            self._draft_changed
+        )
         self.details_state_label = QLabel()
         self.details_counts_label = QLabel()
         self.details_id_label = QLabel()
@@ -235,6 +285,11 @@ class ActivitiesView(QWidget):
         for widget in (
             details_title,
             self.details_description_label,
+            self.description_editor,
+            self.state_editor,
+            self.unsaved_label,
+            self.save_button,
+            self.cancel_button,
             self.details_state_label,
             self.details_counts_label,
             self.details_id_label,
@@ -265,6 +320,10 @@ class ActivitiesView(QWidget):
         return page
 
     def set_projection(self, projection):
+        self._projection = projection
+        if projection.state is not ActivitiesViewState.READY:
+            self.activity_list.clear()
+            self._render_details(None)
         if projection.state is ActivitiesViewState.NO_PROJECT:
             self.state_stack.setCurrentWidget(self.no_project_page)
         elif projection.state is ActivitiesViewState.LOADING:
@@ -290,6 +349,12 @@ class ActivitiesView(QWidget):
         else:
             self._render_ready(projection)
             self.state_stack.setCurrentWidget(self.ready_page)
+        has_project = projection.state is not ActivitiesViewState.NO_PROJECT
+        has_selection = projection.selected_activity is not None
+        self.create_action.setEnabled(has_project)
+        self.new_activity_button.setEnabled(has_project)
+        self.edit_action.setEnabled(has_selection and not self._editing)
+        self.delete_action.setEnabled(has_selection and not self._editing)
 
     def _render_ready(self, projection):
         self.project_name_label.setText(projection.project_name or "")
@@ -327,6 +392,11 @@ class ActivitiesView(QWidget):
 
     def _render_details(self, details):
         if details is None:
+            self.details_description_label.clear()
+            self.details_state_label.clear()
+            self.details_counts_label.clear()
+            self.details_id_label.clear()
+            self.finish_edit()
             return
         self.details_description_label.setText(details.description)
         self.details_state_label.setText(
@@ -339,6 +409,9 @@ class ActivitiesView(QWidget):
         self.details_id_label.setText(
             f"Identificador: {details.activity_id}"
         )
+        if not self._editing:
+            self.description_editor.setText(details.description)
+            self._set_state_options(details)
         self.evidence_ids_label.setText(
             "Interpretações funcionais relacionadas diretamente:\n"
             + ("\n".join(details.evidence_ids) or "Nenhuma")
@@ -399,6 +472,82 @@ class ActivitiesView(QWidget):
                 item.assignment_available,
             )
             self.related_list.addItem(row)
+
+    @property
+    def has_unsaved_changes(self) -> bool:
+        details = self._projection.selected_activity
+        return bool(
+            self._editing
+            and details is not None
+            and (
+                " ".join(self.description_editor.text().split())
+                != details.description
+                or self.state_editor.currentData() != details.state
+            )
+        )
+
+    @property
+    def is_editing(self) -> bool:
+        return self._editing
+
+    def begin_edit(self) -> bool:
+        details = self._projection.selected_activity
+        if details is None or self._editing:
+            return False
+        self._editing = True
+        self.description_editor.setText(details.description)
+        self._set_state_options(details)
+        self.details_description_label.hide()
+        self.details_state_label.hide()
+        self.description_editor.show()
+        self.state_editor.show()
+        self.save_button.show()
+        self.cancel_button.show()
+        self.unsaved_label.hide()
+        self.edit_action.setEnabled(False)
+        self.delete_action.setEnabled(False)
+        self.description_editor.setFocus()
+        return True
+
+    def finish_edit(self) -> None:
+        self._editing = False
+        self.description_editor.hide()
+        self.state_editor.hide()
+        self.save_button.hide()
+        self.cancel_button.hide()
+        self.unsaved_label.hide()
+        self.details_description_label.show()
+        self.details_state_label.show()
+        has_selection = self._projection.selected_activity is not None
+        self.edit_action.setEnabled(has_selection)
+        self.delete_action.setEnabled(has_selection)
+
+    def cancel_edit(self) -> None:
+        details = self._projection.selected_activity
+        if details is not None:
+            self.description_editor.setText(details.description)
+            self._set_state_options(details)
+        self.finish_edit()
+
+    def show_edit_error(self, message: str) -> None:
+        self.unsaved_label.setText(message)
+        self.unsaved_label.show()
+
+    def _draft_changed(self, _value=None) -> None:
+        if not self._editing:
+            return
+        self.unsaved_label.setText("Alterações não salvas")
+        self.unsaved_label.setVisible(self.has_unsaved_changes)
+
+    def _set_state_options(self, details) -> None:
+        self.state_editor.blockSignals(True)
+        self.state_editor.clear()
+        for value, label in details.state_options:
+            self.state_editor.addItem(label, value)
+        index = self.state_editor.findData(details.state)
+        if index >= 0:
+            self.state_editor.setCurrentIndex(index)
+        self.state_editor.blockSignals(False)
 
     def _selection_changed(self, current, _previous):
         if current is not None:

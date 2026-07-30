@@ -130,7 +130,7 @@ class FunctionalAssignmentPresentationTests(unittest.TestCase):
 
         self.assertEqual(len(view.items), 1)
         created = view.items[0]
-        self.assertEqual(created.status, "normalized")
+        self.assertEqual(created.status, "raw")
         self.assertEqual(created.role, "Membro")
         self.assertEqual(
             created.source_evidence_reference, self.evidence.id

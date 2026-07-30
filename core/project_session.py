@@ -13,6 +13,7 @@ from contracts import (
 from models import Project
 from services import (
     DocumentImportService,
+    DocumentMetadataService,
     DocumentRepository,
     DocumentService,
     EvidenceService,
@@ -111,6 +112,16 @@ class ProjectSession:
                 "rsc_session",
                 application_session,
             )
+
+    @property
+    def document_metadata_service(self) -> DocumentMetadataService | None:
+        return getattr(self, "_document_metadata_service", None)
+
+    def bind_document_metadata_service(
+        self,
+        service: DocumentMetadataService,
+    ) -> None:
+        object.__setattr__(self, "_document_metadata_service", service)
 
     def _application_descriptor(
         self,

@@ -196,9 +196,15 @@ class DocumentsControllerTests(unittest.TestCase):
         self.service.get_document.side_effect = None
 
         self.service.get_page.side_effect = DocumentPageNotFoundError()
-        self.assertFalse(
+        self.assertTrue(
             self.controller.navigate(DocumentNavigationRequest(SHA, 99))
         )
+        self.assertEqual(
+            self.controller.last_navigation_outcome,
+            DocumentsController.NAVIGATION_PAGE_MISSING,
+        )
+        self.assertEqual(self.controller.selected_identity, SHA)
+        self.assertIsNone(self.controller.selected_page_number)
         self.assertEqual(
             self.workspace.message_label.text(),
             DocumentsController.PAGE_NAVIGATION_ERROR_MESSAGE,

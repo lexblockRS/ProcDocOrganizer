@@ -1,0 +1,227 @@
+[
+  {
+    "rule_id": "LR-A-001",
+    "classification": "A",
+    "summary": "O catálogo aceita seis requisitos numerados de 1 a 6.",
+    "origin_status": "desconhecida; fonte oficial ausente",
+    "implementation": {"path": "applications/rsc/domain/requirement.py", "symbol": "RscRequirement.__post_init__", "line": 16},
+    "related_tests": [{"path": "applications/rsc/tests/test_domain_foundation.py", "symbol": "OfficialCatalogTests.test_has_exact_official_shape_and_unique_ids", "line": 34}],
+    "constants": ["LC-001", "LC-002"]
+  },
+  {
+    "rule_id": "LR-A-002",
+    "classification": "A",
+    "summary": "O catálogo contém 55 critérios distribuídos 10, 11, 3, 8, 4 e 19 entre os seis requisitos.",
+    "origin_status": "desconhecida; anexos declarados pelo código estão ausentes",
+    "implementation": {"path": "applications/rsc/catalogs/official_criteria.py", "symbol": "OfficialRscCatalog.__init__", "line": 159},
+    "related_tests": [{"path": "applications/rsc/tests/test_domain_foundation.py", "symbol": "OfficialCatalogTests.test_has_exact_official_shape_and_unique_ids", "line": 34}],
+    "constants": ["LC-003", "LC-004"]
+  },
+  {
+    "rule_id": "LR-A-003",
+    "classification": "A",
+    "summary": "Cada critério usa pontos comuns ou variantes de pontuação, de forma exclusiva.",
+    "origin_status": "desconhecida",
+    "implementation": {"path": "applications/rsc/domain/criterion.py", "symbol": "RscCriterion.__post_init__", "line": 45},
+    "related_tests": [{"path": "applications/rsc/tests/test_domain_foundation.py", "symbol": "DomainServiceTests.test_activity_service_validates_catalog_and_variants", "line": 207}],
+    "constants": ["LC-005"]
+  },
+  {
+    "rule_id": "LR-A-004",
+    "classification": "A",
+    "summary": "Os quatro itens do requisito 5 exigem variante titular ou substituto com pontos distintos.",
+    "origin_status": "desconhecida",
+    "implementation": {"path": "applications/rsc/catalogs/official_criteria.py", "symbol": "_VARIANT_ROWS", "line": 102},
+    "related_tests": [{"path": "applications/rsc/tests/test_domain_foundation.py", "symbol": "OfficialCatalogTests.test_requirement_five_has_exact_titular_substituto_variants", "line": 78}],
+    "constants": ["LC-006", "LC-007", "LC-008", "LC-009"]
+  },
+  {
+    "rule_id": "LR-A-005",
+    "classification": "A",
+    "summary": "A quantidade de uma atividade normativa deve ser decimal estritamente positivo.",
+    "origin_status": "desconhecida",
+    "implementation": {"path": "applications/rsc/domain/identifiers.py", "symbol": "positive_decimal", "line": 65},
+    "related_tests": [{"path": "applications/rsc/tests/test_domain_foundation.py", "symbol": "DomainModelTests.test_activity_validates_quantity_dates_and_evidence_duplicates", "line": 125}],
+    "constants": ["LC-010"]
+  },
+  {
+    "rule_id": "LR-A-006",
+    "classification": "A",
+    "summary": "A pontuação bruta é quantidade multiplicada pelos pontos por unidade.",
+    "origin_status": "desconhecida",
+    "implementation": {"path": "applications/rsc/services/scoring_service.py", "symbol": "RscScoringService.calculate_activity", "line": 21},
+    "related_tests": [{"path": "applications/rsc/tests/test_domain_foundation.py", "symbol": "DomainServiceTests.test_scoring_covers_official_units_values_and_variants", "line": 296}],
+    "constants": ["LC-010", "LC-011"]
+  },
+  {
+    "rule_id": "LR-A-007",
+    "classification": "A",
+    "summary": "Activity com status EXCLUDED mantém pontuação bruta, mas recebe pontuação aplicada zero.",
+    "origin_status": "desconhecida",
+    "implementation": {"path": "applications/rsc/services/scoring_service.py", "symbol": "RscScoringService.calculate_activity", "line": 34},
+    "related_tests": [{"path": "applications/rsc/tests/test_domain_foundation.py", "symbol": "DomainServiceTests.test_scoring_is_decimal_pure_deterministic_and_excludes", "line": 257}],
+    "constants": ["LC-012", "LC-013"]
+  },
+  {
+    "rule_id": "LR-A-008",
+    "classification": "A",
+    "summary": "A pontuação do requisito soma pontuações aplicadas das atividades não excluídas vinculadas ao requisito.",
+    "origin_status": "desconhecida",
+    "implementation": {"path": "applications/rsc/services/scoring_service.py", "symbol": "RscScoringService.calculate_requirement", "line": 45},
+    "related_tests": [{"path": "applications/rsc/tests/test_domain_foundation.py", "symbol": "DomainServiceTests.test_scoring_covers_official_units_values_and_variants", "line": 296}],
+    "constants": ["LC-013"]
+  },
+  {
+    "rule_id": "LR-A-009",
+    "classification": "A",
+    "summary": "A pontuação total do processo soma os seis resultados de requisito.",
+    "origin_status": "desconhecida",
+    "implementation": {"path": "applications/rsc/services/scoring_service.py", "symbol": "RscScoringService.calculate_process", "line": 65},
+    "related_tests": [{"path": "applications/rsc/tests/test_application_facade_summary.py", "symbol": "ApplicationFacadeSummaryTests.test_facade_executes_complete_flow_using_one_session", "line": 42}],
+    "constants": ["LC-002", "LC-013"]
+  },
+  {
+    "rule_id": "LR-A-010",
+    "classification": "A",
+    "summary": "Critério inexistente produz erro de validação.",
+    "origin_status": "desconhecida",
+    "implementation": {"path": "applications/rsc/services/validation_service.py", "symbol": "RscValidationService.validate_activity", "line": 34},
+    "related_tests": [{"path": "applications/rsc/tests/test_domain_foundation.py", "symbol": "DomainServiceTests.test_validation_reports_process_fields_and_invalid_references", "line": 365}],
+    "constants": ["LC-014"]
+  },
+  {
+    "rule_id": "LR-A-011",
+    "classification": "A",
+    "summary": "Variante é obrigatória quando o critério possui variantes e proibida quando ele usa pontuação comum.",
+    "origin_status": "desconhecida",
+    "implementation": {"path": "applications/rsc/services/validation_service.py", "symbol": "RscValidationService.validate_activity", "line": 55},
+    "related_tests": [{"path": "applications/rsc/tests/test_domain_foundation.py", "symbol": "DomainServiceTests.test_empty_process_is_valid_and_variant_errors_are_structured", "line": 385}],
+    "constants": ["LC-015", "LC-016"]
+  },
+  {
+    "rule_id": "LR-A-012",
+    "classification": "A",
+    "summary": "Activity completa sem Evidence produz erro; nos demais estados, a ausência produz warning.",
+    "origin_status": "desconhecida",
+    "implementation": {"path": "applications/rsc/services/validation_service.py", "symbol": "RscValidationService.validate_activity", "line": 110},
+    "related_tests": [{"path": "applications/rsc/tests/test_domain_foundation.py", "symbol": "DomainServiceTests.test_validation_distinguishes_draft_warning_and_complete_error", "line": 344}],
+    "constants": ["LC-012", "LC-014", "LC-017"]
+  },
+  {
+    "rule_id": "LR-A-013",
+    "classification": "A",
+    "summary": "Evidence normativa exige ao menos um documento e não admite documento duplicado.",
+    "origin_status": "desconhecida",
+    "implementation": {"path": "applications/rsc/domain/evidence.py", "symbol": "RscEvidence.__post_init__", "line": 25},
+    "related_tests": [{"path": "applications/rsc/tests/test_domain_foundation.py", "symbol": "DomainModelTests.test_document_is_passive_and_evidence_requires_documents", "line": 143}],
+    "constants": []
+  },
+  {
+    "rule_id": "LR-A-014",
+    "classification": "A",
+    "summary": "Processo sem nome do requerente ou instituição produz erro de validação.",
+    "origin_status": "desconhecida",
+    "implementation": {"path": "applications/rsc/services/validation_service.py", "symbol": "RscValidationService.validate_process", "line": 189},
+    "related_tests": [{"path": "applications/rsc/tests/test_domain_foundation.py", "symbol": "DomainServiceTests.test_validation_reports_process_fields_and_invalid_references", "line": 365}],
+    "constants": ["LC-014"]
+  },
+  {
+    "rule_id": "LR-B-001",
+    "classification": "B",
+    "summary": "Cálculos usam Decimal e iniciam somas em Decimal zero.",
+    "origin_status": "decisão técnica interna",
+    "implementation": {"path": "applications/rsc/services/scoring_service.py", "symbol": "RscScoringService", "line": 17},
+    "related_tests": [{"path": "applications/rsc/tests/test_domain_foundation.py", "symbol": "DomainServiceTests.test_scoring_is_decimal_pure_deterministic_and_excludes", "line": 257}],
+    "constants": ["LC-013"]
+  },
+  {
+    "rule_id": "LR-B-002",
+    "classification": "B",
+    "summary": "Identidades de requisitos e critérios seguem códigos rsc.requirement.N e rsc.criterion.N.I.",
+    "origin_status": "decisão técnica interna",
+    "implementation": {"path": "applications/rsc/domain/identifiers.py", "symbol": "requirement_id / criterion_id", "line": 7},
+    "related_tests": [{"path": "applications/rsc/tests/test_domain_foundation.py", "symbol": "OfficialCatalogTests.test_ids_order_units_and_decimal_points_are_stable", "line": 52}],
+    "constants": ["LC-001", "LC-018", "LC-019"]
+  },
+  {
+    "rule_id": "LR-B-003",
+    "classification": "B",
+    "summary": "Resultados de validação são válidos quando não contêm severidade ERROR.",
+    "origin_status": "decisão técnica interna",
+    "implementation": {"path": "applications/rsc/domain/validation.py", "symbol": "RscValidationResult.is_valid", "line": 42},
+    "related_tests": [{"path": "applications/rsc/tests/test_validation_scoring_use_cases.py", "symbol": "ValidationScoringUseCaseTests", "line": 25}],
+    "constants": ["LC-014", "LC-017", "LC-020"]
+  },
+  {
+    "rule_id": "LR-B-004",
+    "classification": "B",
+    "summary": "A porcentagem de conclusão do resumo é atividades completas dividido pelo total, multiplicado por 100; processo vazio retorna zero.",
+    "origin_status": "decisão de produto interna",
+    "implementation": {"path": "applications/rsc/use_cases/summary_use_case.py", "symbol": "GenerateSummaryUseCase.execute", "line": 35},
+    "related_tests": [{"path": "applications/rsc/tests/test_application_facade_summary.py", "symbol": "test_empty_process_summary_is_immutable_and_zeroed / test_partial_summary_uses_operational_evidence_percentage", "line": 86}],
+    "constants": ["LC-013", "LC-021"]
+  },
+  {
+    "rule_id": "LR-B-005",
+    "classification": "B",
+    "summary": "Casos de uso de validação e pontuação apenas orquestram serviços; não contêm catálogo ou fórmula.",
+    "origin_status": "decisão arquitetural interna",
+    "implementation": {"path": "applications/rsc/use_cases/validation_scoring_use_cases.py", "symbol": "ValidateProcessUseCase / CalculateScoreUseCase", "line": 34},
+    "related_tests": [{"path": "applications/rsc/tests/test_validation_scoring_use_cases.py", "symbol": "test_pipeline_module_has_no_formula_catalog_or_severity_enum", "line": 318}],
+    "constants": []
+  },
+  {
+    "rule_id": "LR-C-001",
+    "classification": "C",
+    "summary": "O catálogo é instância singleton imutável compartilhada pela composição.",
+    "origin_status": "decisão de infraestrutura interna",
+    "implementation": {"path": "applications/rsc/catalogs/official_criteria.py", "symbol": "OFFICIAL_RSC_CATALOG", "line": 203},
+    "related_tests": [{"path": "applications/rsc/tests/test_domain_foundation.py", "symbol": "OfficialCatalogTests.test_catalog_queries_are_read_only_and_reject_unknown_ids", "line": 92}],
+    "constants": ["LC-022"]
+  },
+  {
+    "rule_id": "LR-C-002",
+    "classification": "C",
+    "summary": "A composição injeta o mesmo catálogo nos serviços de atividade, validação e pontuação.",
+    "origin_status": "decisão de infraestrutura interna",
+    "implementation": {"path": "applications/rsc/composition.py", "symbol": "create_rsc_project_session", "line": 126},
+    "related_tests": [{"path": "applications/rsc/tests/test_domain_foundation.py", "symbol": "RscSessionIntegrationTests.test_session_exposes_and_disposes_foundation_services", "line": 424}],
+    "constants": ["LC-022"]
+  },
+  {
+    "rule_id": "LR-C-003",
+    "classification": "C",
+    "summary": "A Facade resolve o caso de uso no registry e delega execute sem aplicar fórmula.",
+    "origin_status": "decisão de infraestrutura interna",
+    "implementation": {"path": "applications/rsc/facade.py", "symbol": "RscApplicationFacade._execute", "line": 75},
+    "related_tests": [{"path": "applications/rsc/tests/test_application_facade_summary.py", "symbol": "test_facade_and_summary_have_no_domain_algorithm_or_service_creation", "line": 216}],
+    "constants": []
+  },
+  {
+    "rule_id": "LR-C-004",
+    "classification": "C",
+    "summary": "Serialização preserva Decimal como texto e enums por value.",
+    "origin_status": "decisão de persistência interna",
+    "implementation": {"path": "applications/rsc/infrastructure/serializers.py", "symbol": "serializers de Activity e resultados", "line": 19},
+    "related_tests": [{"path": "applications/rsc/tests/test_project_persistence.py", "symbol": "test_complete_round_trip", "line": 86}],
+    "constants": []
+  },
+  {
+    "rule_id": "LR-D-001",
+    "classification": "D",
+    "summary": "Controllers e Workspaces não executam pontuação; a apresentação consome resultados e navegação.",
+    "origin_status": "decisão de interface interna",
+    "implementation": {"path": "core/project_controller.py", "symbol": "ProjectController", "line": 39},
+    "related_tests": [{"path": "tests/test_core_1_0_architecture.py", "symbol": "test_architecture", "line": 1}],
+    "constants": []
+  },
+  {
+    "rule_id": "LR-E-001",
+    "classification": "E",
+    "summary": "A docstring afirma que o catálogo foi transcrito exclusivamente dos Anexos I a VI.",
+    "origin_status": "origem desconhecida; anexos não disponíveis",
+    "implementation": {"path": "applications/rsc/catalogs/official_criteria.py", "symbol": "module docstring", "line": 1},
+    "related_tests": [],
+    "constants": []
+  }
+]

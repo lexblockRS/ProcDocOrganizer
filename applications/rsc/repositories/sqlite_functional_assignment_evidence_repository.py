@@ -117,6 +117,56 @@ class SQLiteFunctionalAssignmentEvidenceRepository:
                 "Falha ao listar atribuições funcionais."
             ) from exc
 
+    def update(
+        self,
+        evidence: FunctionalAssignmentEvidence,
+    ) -> FunctionalAssignmentEvidence:
+        if not isinstance(evidence, FunctionalAssignmentEvidence):
+            raise TypeError(
+                "evidence deve ser FunctionalAssignmentEvidence."
+            )
+        assignments = ", ".join(
+            f"{column} = ?" for column in self.COLUMNS[1:]
+        )
+        values = self._to_row(evidence)[1:] + (str(evidence.id),)
+        try:
+            with ProjectDatabase(self.database_path) as database:
+                with database.transaction() as connection:
+                    result = connection.execute(
+                        f"UPDATE {self.TABLE} SET {assignments} "
+                        "WHERE id = ?",
+                        values,
+                    )
+                    if result.rowcount != 1:
+                        raise FunctionalAssignmentEvidencePersistenceError(
+                            "A atribuição funcional não existe."
+                        )
+            return evidence
+        except sqlite3.Error as exc:
+            raise FunctionalAssignmentEvidencePersistenceError(
+                "Falha ao atualizar atribuição funcional."
+            ) from exc
+
+    def delete(
+        self,
+        evidence_id: FunctionalAssignmentEvidenceId,
+    ) -> FunctionalAssignmentEvidence | None:
+        current = self.get_by_id(evidence_id)
+        if current is None:
+            return None
+        try:
+            with ProjectDatabase(self.database_path) as database:
+                with database.transaction() as connection:
+                    connection.execute(
+                        f"DELETE FROM {self.TABLE} WHERE id = ?",
+                        (str(evidence_id),),
+                    )
+            return current
+        except sqlite3.Error as exc:
+            raise FunctionalAssignmentEvidencePersistenceError(
+                "Falha ao remover atribuição funcional."
+            ) from exc
+
     @classmethod
     def _to_row(
         cls,

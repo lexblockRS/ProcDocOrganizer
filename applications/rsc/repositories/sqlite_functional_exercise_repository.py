@@ -122,6 +122,36 @@ class SQLiteFunctionalExerciseRepository:
                 "Falha ao listar exercícios funcionais."
             ) from exc
 
+    def update(self, exercise: FunctionalExercise) -> FunctionalExercise:
+        if not isinstance(exercise, FunctionalExercise):
+            raise TypeError("exercise deve ser FunctionalExercise.")
+        if self.get_by_id(exercise.id) is None:
+            raise FunctionalExercisePersistenceError(
+                "Exercício funcional não encontrado."
+            )
+        self.save(exercise)
+        return exercise
+
+    def delete(
+        self,
+        exercise_id: FunctionalExerciseId,
+    ) -> FunctionalExercise | None:
+        current = self.get_by_id(exercise_id)
+        if current is None:
+            return None
+        try:
+            with ProjectDatabase(self.database_path) as database:
+                with database.transaction() as connection:
+                    connection.execute(
+                        f"DELETE FROM {self.TABLE} WHERE id = ?",
+                        (str(exercise_id),),
+                    )
+        except sqlite3.Error as exc:
+            raise FunctionalExercisePersistenceError(
+                "Falha ao remover exercício funcional."
+            ) from exc
+        return current
+
     def _insert(self, connection, exercise: FunctionalExercise) -> None:
         placeholders = ", ".join("?" for _ in self.COLUMNS)
         next_order = (

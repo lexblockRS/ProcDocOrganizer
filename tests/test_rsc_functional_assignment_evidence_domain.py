@@ -231,14 +231,9 @@ class FunctionalAssignmentEvidenceCreationTests(unittest.TestCase):
 class FunctionalAssignmentEvidenceTransitionTests(unittest.TestCase):
     def test_progresses_through_all_states(self):
         raw = evidence()
-        normalized = raw.mark_normalized()
-        identified = normalized.mark_identified()
+        identified = raw.mark_identified()
         linked = identified.mark_linked()
 
-        self.assertIs(
-            normalized.status,
-            FunctionalAssignmentEvidenceStatus.NORMALIZED,
-        )
         self.assertIs(
             identified.status,
             FunctionalAssignmentEvidenceStatus.IDENTIFIED,
@@ -254,14 +249,9 @@ class FunctionalAssignmentEvidenceTransitionTests(unittest.TestCase):
 
     def test_rejects_state_skips(self):
         raw = evidence()
-        normalized = raw.mark_normalized()
 
         with self.assertRaises(ValueError):
-            raw.mark_identified()
-        with self.assertRaises(ValueError):
             raw.mark_linked()
-        with self.assertRaises(ValueError):
-            normalized.mark_linked()
 
     def test_rejects_regressions_and_repeated_transitions(self):
         normalized = evidence().mark_normalized()

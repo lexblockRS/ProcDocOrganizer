@@ -4,6 +4,11 @@ from enum import Enum
 
 from contracts import DocumentNavigationRequest
 from models import EvidenceDraft, EvidenceSourceCandidate
+from presentation import (
+    SelectionContext,
+    SelectionIdentity,
+    SelectionKind,
+)
 from services.evidence_service import (
     EvidenceClockError, EvidenceDocumentUnavailableError,
     EvidenceNotFoundError, EvidenceServiceError, EvidenceSourceStatus,
@@ -25,6 +30,7 @@ class EvidenceController:
         self, workspace, evidence_service=None, *,
         confirm_unsaved=None, confirm_delete=None, confirm_duplicates=None,
         notify=None, document_navigation_requested=None,
+        selection_store=None, deletion_allowed=True,
     ):
         self.workspace = workspace
         self.service = evidence_service
@@ -33,6 +39,8 @@ class EvidenceController:
         self.confirm_duplicates = confirm_duplicates or (lambda _items: False)
         self.notify = notify or (lambda _kind, message: workspace.show_message(message))
         self.document_navigation_requested = document_navigation_requested
+        self.selection_store = selection_store
+        self.deletion_allowed = deletion_allowed
         self.evidences = ()
         self.selected_evidence = None
         self.current_draft = EvidenceDraft.empty()
@@ -41,6 +49,10 @@ class EvidenceController:
         self._source_locked = False
         self._rendered_source_status = None
         self._connect()
+        if self.selection_store is not None:
+            self._unsubscribe_selection = self.selection_store.subscribe(
+                self._on_selection_changed
+            )
         self._render_state()
 
     @property
@@ -159,14 +171,27 @@ class EvidenceController:
         return True
 
     def cancel(self) -> None:
+        cancelled = self.dirty or self.mode == EvidenceEditorMode.CREATING
         if self.mode == EvidenceEditorMode.CREATING:
             self._set_empty()
         elif self.selected_evidence is not None:
             self._restore_baseline(render=True)
+        if cancelled:
+            self.notify("info", "Operação cancelada.")
 
     def delete(self) -> bool:
         evidence = self.selected_evidence
-        if evidence is None or not self.confirm_delete(evidence):
+        if evidence is None:
+            return False
+        if not self._deletion_is_allowed(evidence):
+            self.notify(
+                "info",
+                "A remoção de Evidence está indisponível enquanto a "
+                "política de retenção de referências não for consolidada.",
+            )
+            return False
+        if not self.confirm_delete(evidence):
+            self.notify("info", "Operação cancelada.")
             return False
         try:
             deleted = self.service.delete(evidence.id)
@@ -187,6 +212,7 @@ class EvidenceController:
     def clear(self) -> None:
         self.evidences = ()
         self._reset_editor_state()
+        self._clear_evidence_selection()
         self.workspace.clear()
 
     def _connect(self) -> None:
@@ -212,6 +238,9 @@ class EvidenceController:
             or self.document_navigation_requested is None
         ):
             return False
+        if self._rendered_source_status is EvidenceSourceStatus.UNAVAILABLE:
+            self.notify("warning", "Documento indisponível.")
+            return False
         try:
             request = DocumentNavigationRequest(
                 document_identity=self.selected_evidence.document_identity,
@@ -234,6 +263,16 @@ class EvidenceController:
         self._source_locked = True
         self._rendered_source_status = self._source_status(evidence)
         self.workspace.select_evidence(evidence.id)
+        if self.selection_store is not None:
+            self.selection_store.select(
+                SelectionContext(
+                    SelectionIdentity(
+                        SelectionKind.EVIDENCE,
+                        evidence.id,
+                    ),
+                    display_name=evidence.title,
+                )
+            )
         self.workspace.show_message("")
         self._render_state()
         return True
@@ -269,6 +308,7 @@ class EvidenceController:
     def _set_empty(self) -> None:
         self._reset_editor_state()
         self.workspace.select_evidence(None)
+        self._clear_evidence_selection()
         self._render_state()
 
     def _start_creation(
@@ -345,7 +385,11 @@ class EvidenceController:
             identity_editable=creating and not self._source_locked,
             save_enabled=self.dirty and minimally_valid,
             cancel_enabled=self.dirty or creating,
-            delete_enabled=selected,
+            selected=selected,
+            delete_enabled=(
+                selected
+                and self._deletion_is_allowed(self.selected_evidence)
+            ),
         )
         apply_projection = getattr(
             self.workspace, "_apply_editor_projection", None
@@ -379,3 +423,32 @@ class EvidenceController:
         else:
             message = "Não foi possível concluir a operação."
         self.notify("error", message)
+
+    def _deletion_is_allowed(self, evidence) -> bool:
+        return bool(
+            self.deletion_allowed(evidence)
+            if callable(self.deletion_allowed)
+            else self.deletion_allowed
+        )
+
+    def _clear_evidence_selection(self) -> None:
+        if self.selection_store is None:
+            return
+        identity = self.selection_store.snapshot.selection.identity
+        if identity.kind is SelectionKind.EVIDENCE:
+            self.selection_store.clear()
+
+    def _on_selection_changed(self, snapshot) -> None:
+        identity = snapshot.selection.identity
+        if identity.kind is SelectionKind.EVIDENCE:
+            if (
+                self.selected_evidence is not None
+                and self.selected_evidence.id == identity.identifier
+            ):
+                return
+            self._select(identity.identifier)
+            return
+        if self.selected_evidence is not None:
+            self._reset_editor_state()
+            self.workspace.select_evidence(None)
+            self._render_state()

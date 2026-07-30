@@ -20,3 +20,6 @@ class InMemoryActivityRepository:
 
     def list_all(self) -> tuple[Activity, ...]:
         return tuple(self._activities.values())
+
+    def delete(self, activity_id: str) -> Activity | None:
+        return self._activities.pop(activity_id, None)

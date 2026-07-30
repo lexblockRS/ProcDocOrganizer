@@ -8,6 +8,10 @@ from .document_import_service import (
     DocumentImportService,
 )
 from .document_repository import DocumentRepository
+from .document_metadata_service import (
+    DocumentMetadataError,
+    DocumentMetadataService,
+)
 from .evidence_repository_errors import (
     DuplicateEvidenceError,
     EvidenceDocumentNotFoundError,
@@ -23,6 +27,7 @@ from .evidence_service import (
     EvidenceClockError,
     EvidenceDocumentUnavailableError,
     EvidenceNotFoundError,
+    EvidenceManagementService,
     EvidenceService,
     EvidenceServiceError,
     EvidenceSourceStatus,
@@ -40,6 +45,8 @@ __all__ = [
     "DocumentImportResult",
     "DocumentImportService",
     "DocumentRepository",
+    "DocumentMetadataError",
+    "DocumentMetadataService",
     "EvidenceRepository",
     "DocumentSourceResolver",
     "SearchDocumentSourceResolver",
@@ -50,6 +57,7 @@ __all__ = [
     "RepositoryEvidenceNotFoundError",
     "SearchService",
     "EvidenceService",
+    "EvidenceManagementService",
     "EvidenceServiceError",
     "EvidenceValidationError",
     "EvidenceNotFoundError",

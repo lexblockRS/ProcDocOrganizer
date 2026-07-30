@@ -1,0 +1,122 @@
+{
+  "schema": "rsc-canonical-fact-vocabulary/1",
+  "principles": {
+    "implicit_synonyms_allowed": false,
+    "normalization_reversible": true,
+    "probabilistic_confidence": false
+  },
+  "concepts": [
+    {
+      "domain_name": "start_date",
+      "execution_name": "period_start",
+      "description": "Início declarado do período do FunctionalExercise.",
+      "type": "date_string",
+      "origin": "EvaluationFunctionalExercise.start_date"
+    },
+    {
+      "domain_name": "end_date",
+      "execution_name": "period_end",
+      "description": "Fim declarado do período do FunctionalExercise, quando disponível.",
+      "type": "date_string_or_null",
+      "origin": "EvaluationFunctionalExercise.end_date"
+    },
+    {
+      "domain_name": "role",
+      "execution_name": "execution_role",
+      "description": "Papel factual transportado sem seleção de variante normativa.",
+      "type": "string",
+      "origin": "EvaluationFunctionalExercise.role"
+    },
+    {
+      "domain_name": "unit",
+      "execution_name": "measurement_unit",
+      "description": "Unidade normativa declarada pela regra executável; o campo factual homônimo não é usado como substituto implícito.",
+      "type": "string",
+      "origin": "CriterionExecutionRule.measurement_unit"
+    },
+    {
+      "domain_name": "designation_count",
+      "execution_name": "designation_count",
+      "description": "Quantidade explicitamente fornecida de designações.",
+      "type": "non_negative_number",
+      "origin": "AssessmentTraceability.facts"
+    },
+    {
+      "domain_name": "project_count",
+      "execution_name": "project_count",
+      "description": "Quantidade explicitamente fornecida de projetos.",
+      "type": "non_negative_number",
+      "origin": "AssessmentTraceability.facts"
+    },
+    {
+      "domain_name": "product_count",
+      "execution_name": "product_count",
+      "description": "Quantidade explicitamente fornecida de produtos.",
+      "type": "non_negative_number",
+      "origin": "AssessmentTraceability.facts"
+    },
+    {
+      "domain_name": "mandate_count",
+      "execution_name": "mandate_count",
+      "description": "Quantidade explicitamente fornecida de mandatos.",
+      "type": "non_negative_number",
+      "origin": "AssessmentTraceability.facts"
+    },
+    {
+      "domain_name": "event_count",
+      "execution_name": "event_count",
+      "description": "Quantidade explicitamente fornecida de eventos.",
+      "type": "non_negative_number",
+      "origin": "AssessmentTraceability.facts"
+    },
+    {
+      "domain_name": "training_count",
+      "execution_name": "training_count",
+      "description": "Quantidade explicitamente fornecida de capacitações.",
+      "type": "non_negative_number",
+      "origin": "AssessmentTraceability.facts"
+    },
+    {
+      "domain_name": "award_count",
+      "execution_name": "award_count",
+      "description": "Quantidade explicitamente fornecida de prêmios.",
+      "type": "non_negative_number",
+      "origin": "AssessmentTraceability.facts"
+    },
+    {
+      "domain_name": "system_count",
+      "execution_name": "system_count",
+      "description": "Quantidade explicitamente fornecida de sistemas.",
+      "type": "non_negative_number",
+      "origin": "AssessmentTraceability.facts"
+    },
+    {
+      "domain_name": "patent_count",
+      "execution_name": "patent_count",
+      "description": "Quantidade explicitamente fornecida de patentes.",
+      "type": "non_negative_number",
+      "origin": "AssessmentTraceability.facts"
+    },
+    {
+      "domain_name": "course_count",
+      "execution_name": "course_count",
+      "description": "Quantidade explicitamente fornecida de cursos.",
+      "type": "non_negative_number",
+      "origin": "AssessmentTraceability.facts"
+    },
+    {
+      "domain_name": "research_group_count",
+      "execution_name": "research_group_count",
+      "description": "Quantidade explicitamente fornecida de grupos de pesquisa.",
+      "type": "non_negative_number",
+      "origin": "AssessmentTraceability.facts"
+    },
+    {
+      "domain_name": "publication_count",
+      "execution_name": "publication_count",
+      "description": "Quantidade explicitamente fornecida de publicações.",
+      "type": "non_negative_number",
+      "origin": "AssessmentTraceability.facts"
+    }
+  ]
+}

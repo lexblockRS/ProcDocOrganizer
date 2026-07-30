@@ -47,6 +47,10 @@ def ready_projection(selected="a"):
             exercise_ids=("exercise-1",),
             evidence_count=1,
             exercise_count=1,
+            state_options=(
+                ("lembrada", "Lembrada"),
+                ("em_investigacao", "Em investigação"),
+            ),
         ),
         total=2,
         remembered_count=2,
@@ -82,14 +86,14 @@ class ActivitiesViewTests(unittest.TestCase):
                     self.view.state_stack.currentWidget(), page
                 )
 
-    def test_empty_creation_button_is_disabled(self):
+    def test_empty_creation_button_is_available(self):
         self.view.set_projection(ActivitiesProjection(
             state=ActivitiesViewState.EMPTY
         ))
-        self.assertFalse(self.view.new_activity_button.isEnabled())
+        self.assertTrue(self.view.new_activity_button.isEnabled())
         self.assertEqual(
             self.view.new_activity_button.toolTip(),
-            "Disponível na próxima etapa",
+            "Criar uma Activity",
         )
 
     def test_ready_renders_list_totals_and_details(self):
@@ -116,6 +120,37 @@ class ActivitiesViewTests(unittest.TestCase):
         self.view.activity_list.setCurrentRow(1)
 
         self.assertEqual(received, ["b"])
+
+    def test_inspector_edits_description_and_state_and_can_cancel(self):
+        self.view.set_projection(ready_projection())
+        saved = []
+        self.view.save_requested.connect(
+            lambda description, state: saved.append(
+                (description, state)
+            )
+        )
+
+        self.view.edit_action.trigger()
+        self.assertTrue(self.view.is_editing)
+        self.view.description_editor.setText("Nova descrição")
+        self.view.state_editor.setCurrentIndex(1)
+        self.assertTrue(self.view.has_unsaved_changes)
+        self.view.save_button.click()
+        self.assertEqual(
+            saved,
+            [("Nova descrição", "em_investigacao")],
+        )
+
+        self.view.cancel_edit()
+        self.assertFalse(self.view.is_editing)
+        self.assertEqual(
+            self.view.description_editor.text(),
+            "Fiscalização",
+        )
+        self.assertEqual(
+            self.view.state_editor.currentData(),
+            "lembrada",
+        )
 
     def test_buttons_emit_neutral_signals(self):
         counts = {"open": 0, "refresh": 0, "retry": 0}

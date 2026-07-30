@@ -26,3 +26,19 @@ class InMemoryFunctionalExerciseRepository:
 
     def list_all(self) -> tuple[FunctionalExercise, ...]:
         return tuple(self._exercises.values())
+
+    def update(self, exercise: FunctionalExercise) -> FunctionalExercise:
+        if not isinstance(exercise, FunctionalExercise):
+            raise TypeError("exercise deve ser FunctionalExercise.")
+        if exercise.id not in self._exercises:
+            raise LookupError("Exercício funcional não encontrado.")
+        self._exercises[exercise.id] = exercise
+        return exercise
+
+    def delete(
+        self,
+        exercise_id: FunctionalExerciseId,
+    ) -> FunctionalExercise | None:
+        if not isinstance(exercise_id, FunctionalExerciseId):
+            raise TypeError("exercise_id deve ser FunctionalExerciseId.")
+        return self._exercises.pop(exercise_id, None)
