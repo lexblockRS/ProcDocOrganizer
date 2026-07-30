@@ -33,6 +33,10 @@ class TemporalDecomposition:
     residual_days: int
     fraction_at_least_six_months: bool
 
+    @property
+    def completed_months(self) -> int:
+        return self.complete_years * 12 + self.residual_months
+
 
 @dataclass(frozen=True, slots=True)
 class ScoringExecutionTrace:
@@ -101,6 +105,7 @@ class CriterionScoringKernel:
 
     _SUPPORTED_RULES = frozenset({
         "PER_EVENT",
+        "PER_MONTH",
         "PER_PUBLICATION",
         "PER_YEAR",
     })
@@ -131,7 +136,7 @@ class CriterionScoringKernel:
         raw_quantity = contract.measurement.amount
         temporal_details = ""
         temporal_block: str | None = None
-        if contract.counting_rule.rule_type == "PER_YEAR":
+        if contract.counting_rule.rule_type in {"PER_YEAR", "PER_MONTH"}:
             quantity, temporal_details, temporal_block = (
                 self._complete_year_quantity(contract)
             )
@@ -193,7 +198,9 @@ class CriterionScoringKernel:
         temporal_block: str | None,
     ) -> tuple[ScoringState, str]:
         if (
-            contract.counting_rule.rule_type == "PER_YEAR"
+            contract.counting_rule.rule_type in {"PER_YEAR", "PER_MONTH"}
+            and contract.execution_computability
+            is not ExecutionComputability.EXECUTABLE
             and contract.validation_state.value
             in {
                 ScoringState.TEXT_DEPENDENT.value,
@@ -227,10 +234,16 @@ class CriterionScoringKernel:
         self,
         contract: CriterionExecutionContract,
     ) -> tuple[Decimal | None, str, str | None]:
-        if (
-            contract.temporal_rule not in self._COMPLETE_YEAR_RULES
-            and contract.temporal_rule != self._FRACTION_RULE
-        ):
+        is_per_month = contract.counting_rule.rule_type == "PER_MONTH"
+        temporal_rule_supported = (
+            contract.temporal_rule == "PER_MONTH"
+            if is_per_month
+            else (
+                contract.temporal_rule in self._COMPLETE_YEAR_RULES
+                or contract.temporal_rule == self._FRACTION_RULE
+            )
+        )
+        if not temporal_rule_supported:
             return (
                 None,
                 f"regra temporal {contract.temporal_rule}; ",
@@ -258,13 +271,35 @@ class CriterionScoringKernel:
         if start_text is None or end_text is None:
             return None, details, "período aberto ou data ausente"
         try:
-            start = date.fromisoformat(start_text)
-            end = date.fromisoformat(end_text)
-        except ValueError:
-            return None, details, "data inicial ou final inválida"
-        if end < start:
-            return None, details, "datas invertidas"
-        decomposition = decompose_temporal_period(start, end)
+            decomposition = decompose_temporal_period(
+                start_text,
+                end_text,
+            )
+        except ValueError as exc:
+            reason = (
+                "datas invertidas"
+                if "posterior" in str(exc)
+                else "data inicial ou final inválida"
+            )
+            return None, details, reason
+        if is_per_month:
+            quantity = Decimal(decomposition.completed_months)
+            return (
+                quantity,
+                (
+                    f"{details}"
+                    f"anos completos {decomposition.complete_years}; "
+                    f"meses residuais {decomposition.residual_months}; "
+                    f"dias residuais {decomposition.residual_days}; "
+                    f"meses completos totais {quantity}; "
+                    "regra aplicada PER_MONTH; "
+                    f"valor normativo por mês "
+                    f"{contract.resolved_normative_value.value}; "
+                    f"unidade oficial "
+                    f"{contract.resolved_normative_value.unit}; "
+                ),
+                None,
+            )
         rounded = False
         if contract.temporal_rule == self._FRACTION_RULE:
             rounded = decomposition.fraction_at_least_six_months
@@ -314,9 +349,13 @@ def _complete_years(start: date, end: date) -> tuple[int, date]:
 
 
 def decompose_temporal_period(
-    start: date,
-    end: date,
+    start: date | str,
+    end: date | str,
 ) -> TemporalDecomposition:
+    start = _canonical_date(start)
+    end = _canonical_date(end)
+    if end < start:
+        raise ValueError("A data final deve ser igual ou posterior à inicial.")
     years, residual_start = _complete_years(start, end)
     residual_months, residual_days = _calendar_residual(
         residual_start,
@@ -331,6 +370,12 @@ def decompose_temporal_period(
         residual_days=residual_days,
         fraction_at_least_six_months=end >= six_month_boundary,
     )
+
+
+def _canonical_date(value: date | str) -> date:
+    if isinstance(value, date):
+        return value
+    return date.fromisoformat(value)
 
 
 def _anniversary(start: date, year: int) -> date:

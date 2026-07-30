@@ -27,6 +27,7 @@ from applications.rsc.execution_validation import (
     ExecutionValidationCollection,
     ExecutionValidationTraceability,
     ValidationState,
+    measurement_is_computable,
 )
 
 
@@ -617,7 +618,7 @@ class ExecutionContractResolver:
             validation.validation_state
             is ValidationState.HUMAN_REVIEW_REQUIRED
             or normative_value.value is None
-            or fact.measurement.amount is None
+            or not measurement_is_computable(fact)
         ):
             return ExecutionComputability.NOT_EXECUTABLE
         return ExecutionComputability.EXECUTABLE

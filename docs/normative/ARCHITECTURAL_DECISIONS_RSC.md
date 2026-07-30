@@ -114,3 +114,25 @@ Constatação: novos operadores exigem alteração de `_apply`.
 
 Direção recomendada: registry fechado por whitelist, determinístico e sem
 execução dinâmica arbitrária.
+
+## ADR-RSC-013 — Computabilidade autodescritiva das medições
+
+Status: aceita.
+
+Invariante: toda `Measurement` possui uma política explícita de
+computabilidade. A computabilidade não depende de uma regra única para
+todos os tipos; cada tipo define as informações mínimas que devem estar
+presentes. Na ausência de política explícita, o tipo é considerado
+`NOT_COMPUTABLE`.
+
+Políticas atualmente consolidadas:
+
+- `QUANTITY`: exige `measurement.amount`;
+- `COUNT`: exige `measurement.amount`;
+- `HOURS`: exige `measurement.amount`;
+- `DURATION`: exige intervalo temporal canônico completo, com data inicial
+  e data final válidas; não exige `measurement.amount`.
+
+Consequência: um intervalo constitui a informação factual de uma medição
+`DURATION`, mas sua transformação em anos, meses, dias ou quantidade
+normativa permanece posterior.

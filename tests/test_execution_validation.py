@@ -18,6 +18,7 @@ from applications.rsc.execution_facts import (
 from applications.rsc.execution_validation import (
     ExecutionValidator,
     ValidationState,
+    measurement_is_computable,
 )
 from test_execution_facts import assessment, context
 
@@ -93,6 +94,107 @@ class ExecutionValidatorTests(unittest.TestCase):
             "designation_count",
         )
         self.assertEqual(len(validation.missing_measurements), 1)
+
+    def test_duration_is_computable_from_complete_canonical_interval(self):
+        fact = prepared_fact(
+            criterion_id="DEC13048-ANX-VI-ITEM-19",
+            requirement_id="DEC13048-ART3-VI",
+            with_quantity=False,
+        )
+
+        validation = self.validator.validate(
+            ExecutionFactCollection((fact,))
+        ).validations[0]
+
+        self.assertIsNone(fact.measurement.amount)
+        self.assertEqual(
+            fact.measurement.validation_state,
+            MeasurementValidationState.REVIEW_REQUIRED,
+        )
+        self.assertFalse(validation.missing_measurements)
+        self.assertNotEqual(
+            validation.validation_state,
+            ValidationState.BLOCKED,
+        )
+        self.assertTrue(all(
+            occurrence.quantity is None
+            for occurrence in fact.quantified_occurrences
+        ))
+
+    def test_duration_without_closed_interval_remains_blocked(self):
+        fact = prepared_fact(
+            criterion_id="DEC13048-ANX-VI-ITEM-19",
+            requirement_id="DEC13048-ART3-VI",
+            with_quantity=False,
+        )
+        fact = replace(
+            fact,
+            canonical_time_interval=replace(
+                fact.canonical_time_interval,
+                end=None,
+            ),
+        )
+
+        validation = self.validator.validate(
+            ExecutionFactCollection((fact,))
+        ).validations[0]
+
+        self.assertEqual(
+            validation.validation_state,
+            ValidationState.BLOCKED,
+        )
+        self.assertEqual(len(validation.missing_measurements), 1)
+
+    def test_duration_with_invalid_interval_remains_blocked(self):
+        fact = prepared_fact(
+            criterion_id="DEC13048-ANX-VI-ITEM-19",
+            requirement_id="DEC13048-ART3-VI",
+            with_quantity=False,
+        )
+        fact = replace(
+            fact,
+            canonical_time_interval=replace(
+                fact.canonical_time_interval,
+                end="invalid-date",
+            ),
+        )
+
+        validation = self.validator.validate(
+            ExecutionFactCollection((fact,))
+        ).validations[0]
+
+        self.assertEqual(
+            validation.validation_state,
+            ValidationState.BLOCKED,
+        )
+        self.assertEqual(len(validation.missing_measurements), 1)
+
+    def test_amount_based_measurements_require_available_amount(self):
+        source = prepared_fact()
+        for measurement_type in ("QUANTITY", "HOURS", "COUNT"):
+            with self.subTest(measurement_type=measurement_type):
+                absent = replace(
+                    source,
+                    measurement=replace(
+                        source.measurement,
+                        measurement_type=measurement_type,
+                        amount=None,
+                        validation_state=MeasurementValidationState.MISSING,
+                    ),
+                )
+                available = replace(
+                    absent,
+                    measurement=replace(
+                        absent.measurement,
+                        amount=1,
+                        validation_state=(
+                            MeasurementValidationState.AVAILABLE
+                        ),
+                    ),
+                )
+
+                self.assertFalse(measurement_is_computable(absent))
+                self.assertTrue(measurement_is_computable(available))
 
     def test_missing_document_is_reported_separately(self):
         fact = replace(prepared_fact(), canonical_documents=())

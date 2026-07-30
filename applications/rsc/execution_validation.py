@@ -570,16 +570,14 @@ class ExecutionValidator:
         fact: ExecutionFact,
         rule: Mapping[str, Any],
     ) -> tuple[MissingMeasurement, ...]:
-        if (
-            fact.measurement.amount is not None
-            and fact.measurement.validation_state
-            is MeasurementValidationState.AVAILABLE
-        ):
+        if measurement_is_computable(fact):
             return ()
         return (MissingMeasurement(
             measurement_type=_text(rule, "measurement_type"),
             unit=_text(rule, "measurement_unit"),
-            reason="Quantidade validada não está disponível.",
+            reason=(
+                "Elementos mínimos da medição não estão disponíveis."
+            ),
         ),)
 
     @staticmethod
@@ -842,6 +840,28 @@ def _text_sequence(
     return result
 
 
+def measurement_is_computable(fact: ExecutionFact) -> bool:
+    """Valida os elementos mínimos definidos pelo tipo da medição."""
+    measurement = fact.measurement
+    if measurement.measurement_type == "DURATION":
+        period = fact.canonical_time_interval
+        if period.start is None or period.end is None:
+            return False
+        try:
+            start = date.fromisoformat(period.start)
+            end = date.fromisoformat(period.end)
+        except ValueError:
+            return False
+        return end >= start
+    if measurement.measurement_type in {"QUANTITY", "HOURS", "COUNT"}:
+        return (
+            measurement.amount is not None
+            and measurement.validation_state
+            is MeasurementValidationState.AVAILABLE
+        )
+    return False
+
+
 def _require_text(value: object, field: str) -> None:
     if not isinstance(value, str) or not value.strip():
         raise TypeError(f"{field} deve ser textual.")
@@ -886,4 +906,5 @@ __all__ = [
     "MissingMeasurement",
     "MissingVariant",
     "ValidationState",
+    "measurement_is_computable",
 ]

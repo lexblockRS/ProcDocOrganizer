@@ -66,6 +66,34 @@ class ExecutionContractResolverTests(unittest.TestCase):
         self.assertIs(contract.source_execution_fact, facts.facts[0])
         self.assertIs(contract.source_validation, validations.validations[0])
 
+    def test_duration_contract_is_executable_without_early_quantity(self):
+        fact = prepared_fact(
+            criterion_id="DEC13048-ANX-VI-ITEM-19",
+            requirement_id="DEC13048-ART3-VI",
+            with_quantity=False,
+        )
+        facts = ExecutionFactCollection((fact,))
+        validations = ExecutionValidator.from_files(
+            RULES,
+            MANIFEST,
+        ).validate(facts)
+
+        contract = self.resolver.resolve(
+            facts,
+            validations,
+        ).contracts[0]
+
+        self.assertEqual(
+            contract.execution_computability,
+            ExecutionComputability.EXECUTABLE,
+        )
+        self.assertIsNone(contract.measurement.amount)
+        self.assertTrue(all(
+            occurrence.quantity is None
+            for occurrence in contract.occurrences
+        ))
+        self.assertFalse(contract.source_validation.missing_measurements)
+
     def test_rule_is_materialized_without_execution(self):
         facts, validations = sources()
 

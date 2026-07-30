@@ -2,10 +2,14 @@
 
 ## Normalização
 
-A quantidade de entrada é copiada de `contract.measurement.amount`.
-Valores inteiros são convertidos diretamente para `Decimal`; valores
-já decimais são preservados. Zero é um operando válido. `None` permanece
-ausente. Booleanos, `float` e outros tipos não são aceitos.
+Para medições quantitativas, a quantidade de entrada é copiada de
+`contract.measurement.amount`. Valores inteiros são convertidos
+diretamente para `Decimal`; valores já decimais são preservados. Zero é
+um operando válido. Booleanos, `float` e outros tipos não são aceitos.
+
+Em medições `DURATION`, `measurement.amount` permanece ausente. A
+quantidade normativa é derivada posteriormente do intervalo temporal
+canônico pela regra executada no Kernel.
 
 O valor unitário é lido exclusivamente de
 `contract.resolved_normative_value.value` e deve chegar como `Decimal`.
@@ -39,6 +43,20 @@ residuais são a diferença posterior ao último mês completo. Datas em
 29 de fevereiro usam 28 de fevereiro como aniversário em anos não
 bissextos.
 
+Para `PER_MONTH`, a quantidade é o total canônico de meses-calendário
+completos:
+
+`calculated_score = Decimal(completed_months) × normative_operand`
+
+`completed_months` pertence à decomposição temporal canônica e equivale
+a `complete_years × 12 + residual_months`. O Kernel consome a propriedade
+pronta; não recompõe esse valor.
+
+Dias residuais são preservados para explicabilidade, mas nunca produzem
+mês adicional. `PER_MONTH` não usa aproximações por quantidade fixa de
+dias, não produz fração decimal e não aplica
+`FRACTION_ABOVE_SIX_MONTHS`.
+
 Não há outra conversão temporal, teto, mínimo, máximo ou transformação.
 A aritmética `Decimal` evita a perda de precisão binária.
 
@@ -49,13 +67,29 @@ canônica. Nenhuma regra normativa implementa algoritmos próprios de
 manipulação de datas.
 
 `PER_YEAR`, `FRACTION_ABOVE_SIX_MONTHS` e `PER_MONTH` pertencem a essa
-mesma família. `PER_MONTH` ainda não possui execução nesta versão; sua
-implementação futura deverá consumir a decomposição existente, sem
-duplicar cálculo de datas.
+mesma família e consomem a decomposição existente, sem duplicar cálculo
+de datas.
 
 Os `TemporalAttention` também consomem essa decomposição, mas pertencem
 exclusivamente à interface de revisão. Eles são produzidos depois do
 Score e não alteram cálculo, estado, contrato ou resultado normativo.
+
+## Princípio da neutralidade factual
+
+`ExecutionFact` representa exclusivamente fatos observáveis.
+`Measurement` representa exclusivamente a informação originalmente
+disponível.
+
+Valores derivados de interpretação normativa não podem ser
+materializados antecipadamente em `ExecutionFact` nem em `Measurement`.
+Transformações como anos considerados, meses completos, dias computáveis
+e quantidade normativa pertencem exclusivamente ao
+`CriterionScoringKernel` ou à infraestrutura temporal canônica por ele
+utilizada.
+
+As etapas anteriores apenas verificam se existem fatos suficientes para
+permitir a execução normativa. Elas não antecipam a transformação do
+intervalo em quantidade.
 
 ## Rastreabilidade
 
