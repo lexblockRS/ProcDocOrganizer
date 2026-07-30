@@ -13,6 +13,11 @@ from typing import Any
 from uuid import NAMESPACE_URL, uuid5
 
 from applications.rsc.criterion_candidates import FactualTraceability
+from applications.rsc.execution_compatibility import (
+    CompatibilityState,
+    ExecutionCompatibility,
+    ExecutionCompatibilityCollection,
+)
 from applications.rsc.execution_facts import (
     CanonicalDocument,
     CanonicalFact,
@@ -123,6 +128,7 @@ class CriterionExecutionContract:
     contract_id: str
     execution_fact_id: str
     validation_id: str
+    compatibility_id: str
     execution_rule_id: str
     criterion_id: str
     requirement_id: str
@@ -151,12 +157,14 @@ class CriterionExecutionContract:
     explanation: str
     source_execution_fact: ExecutionFact
     source_validation: ExecutionValidation
+    source_compatibility: ExecutionCompatibility
 
     def __post_init__(self) -> None:
         for field_name in (
             "contract_id",
             "execution_fact_id",
             "validation_id",
+            "compatibility_id",
             "execution_rule_id",
             "criterion_id",
             "requirement_id",
@@ -246,6 +254,13 @@ class CriterionExecutionContract:
         if not isinstance(self.source_validation, ExecutionValidation):
             raise TypeError(
                 "source_validation deve ser ExecutionValidation."
+            )
+        if not isinstance(
+            self.source_compatibility,
+            ExecutionCompatibility,
+        ):
+            raise TypeError(
+                "source_compatibility deve ser ExecutionCompatibility."
             )
 
 
@@ -343,6 +358,7 @@ class ExecutionContractResolver:
         self,
         facts: ExecutionFactCollection,
         validations: ExecutionValidationCollection,
+        compatibilities: ExecutionCompatibilityCollection,
     ) -> CriterionExecutionContractCollection:
         if not isinstance(facts, ExecutionFactCollection):
             raise TypeError("facts deve ser ExecutionFactCollection.")
@@ -353,18 +369,37 @@ class ExecutionContractResolver:
             raise TypeError(
                 "validations deve ser ExecutionValidationCollection."
             )
+        if not isinstance(
+            compatibilities,
+            ExecutionCompatibilityCollection,
+        ):
+            raise TypeError(
+                "compatibilities deve ser "
+                "ExecutionCompatibilityCollection."
+            )
         validation_index = {
             item.execution_fact_id: item for item in validations
         }
+        compatibility_index = {
+            item.execution_fact_id: item for item in compatibilities
+        }
         fact_ids = tuple(item.execution_fact_id for item in facts)
-        if len(fact_ids) != len(validation_index) or set(fact_ids) != set(
-            validation_index
+        if (
+            len(fact_ids) != len(validation_index)
+            or set(fact_ids) != set(validation_index)
+            or len(fact_ids) != len(compatibility_index)
+            or set(fact_ids) != set(compatibility_index)
         ):
             raise ExecutionContractResolutionError(
-                "Facts e Validations devem possuir correspondência exata."
+                "Facts, Validations e Compatibilities devem possuir "
+                "correspondência exata."
             )
         contracts = tuple(
-            self._resolve_one(fact, validation_index[fact.execution_fact_id])
+            self._resolve_one(
+                fact,
+                validation_index[fact.execution_fact_id],
+                compatibility_index[fact.execution_fact_id],
+            )
             for fact in facts
         )
         return CriterionExecutionContractCollection(contracts)
@@ -373,6 +408,7 @@ class ExecutionContractResolver:
         self,
         fact: ExecutionFact,
         validation: ExecutionValidation,
+        compatibility: ExecutionCompatibility,
     ) -> CriterionExecutionContract:
         rule = self._rules.get(fact.criterion_id)
         manifest = self._manifest.get(fact.criterion_id)
@@ -384,7 +420,13 @@ class ExecutionContractResolver:
             raise InconsistentExecutionContractManifestError(
                 f"Manifesto ausente para {fact.criterion_id}."
             )
-        self._require_links(fact, validation, rule, manifest)
+        self._require_links(
+            fact,
+            validation,
+            compatibility,
+            rule,
+            manifest,
+        )
         criterion = self._criteria.get(fact.criterion_id)
         if criterion is None:
             raise MissingExecutionContractRuleError(
@@ -407,12 +449,17 @@ class ExecutionContractResolver:
         counting = self._counting_rule(rule)
         variant = self._variant_rule(rule)
         required_facts = _text_sequence(rule, "required_facts")
-        unresolved = self._unresolved(fact, validation)
+        unresolved = self._unresolved(
+            fact,
+            validation,
+            compatibility,
+        )
         table = _text(rule, "scoring_table")
         legal_computability = self._legal_computability(rule)
         execution_computability = self._execution_computability(
             fact,
             validation,
+            compatibility,
             normative_value,
         )
         return CriterionExecutionContract(
@@ -424,6 +471,7 @@ class ExecutionContractResolver:
             ),
             execution_fact_id=fact.execution_fact_id,
             validation_id=validation.validation_id,
+            compatibility_id=compatibility.compatibility_id,
             execution_rule_id=fact.execution_rule_id,
             criterion_id=fact.criterion_id,
             requirement_id=fact.requirement_id,
@@ -462,12 +510,14 @@ class ExecutionContractResolver:
             ),
             source_execution_fact=fact,
             source_validation=validation,
+            source_compatibility=compatibility,
         )
 
     @staticmethod
     def _require_links(
         fact: ExecutionFact,
         validation: ExecutionValidation,
+        compatibility: ExecutionCompatibility,
         rule: Mapping[str, Any],
         manifest: Mapping[str, Any],
     ) -> None:
@@ -478,6 +528,12 @@ class ExecutionContractResolver:
              validation.execution_rule_id),
             ("validation.criterion_id", fact.criterion_id,
              validation.criterion_id),
+            ("compatibility.execution_fact_id", fact.execution_fact_id,
+             compatibility.execution_fact_id),
+            ("compatibility.validation_id", validation.validation_id,
+             compatibility.validation_id),
+            ("compatibility.execution_rule_id", fact.execution_rule_id,
+             compatibility.execution_rule_id),
             ("rule.id", fact.execution_rule_id, _text(rule, "id")),
             ("rule.criterion_id", fact.criterion_id,
              _text(rule, "criterion_id")),
@@ -610,9 +666,14 @@ class ExecutionContractResolver:
     def _execution_computability(
         fact: ExecutionFact,
         validation: ExecutionValidation,
+        compatibility: ExecutionCompatibility,
         normative_value: ResolvedNormativeValue,
     ) -> ExecutionComputability:
-        if validation.validation_state is ValidationState.BLOCKED:
+        if (
+            validation.validation_state is ValidationState.BLOCKED
+            or compatibility.compatibility_state
+            is CompatibilityState.INCOMPATIBLE
+        ):
             return ExecutionComputability.BLOCKED
         if (
             validation.validation_state
@@ -627,11 +688,16 @@ class ExecutionContractResolver:
     def _unresolved(
         fact: ExecutionFact,
         validation: ExecutionValidation,
+        compatibility: ExecutionCompatibility,
     ) -> tuple[str, ...]:
         return _unique_text((
             *fact.unresolved_items,
             *validation.blocking_issues,
             *validation.warnings,
+            *(
+                f"incompatible_measurement:{issue}"
+                for issue in compatibility.issues
+            ),
             *(
                 f"missing_fact:{item.fact_name}"
                 for item in validation.missing_facts

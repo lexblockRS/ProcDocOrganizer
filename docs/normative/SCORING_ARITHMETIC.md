@@ -21,6 +21,12 @@ Para `PER_EVENT` e `PER_PUBLICATION`:
 
 `calculated_score = normalized_quantity × normative_operand`
 
+Em `PER_EVENT`, `normalized_quantity` deriva exclusivamente de
+`contract.measurement.amount`. O Kernel não conta `ExecutionOccurrence`, não
+infere eventos, não interpreta datas e não converte unidades. A
+compatibilidade entre o tipo da Measurement e a regra é decidida antes da
+montagem do contrato, pela etapa `ExecutionCompatibility`.
+
 Para `PER_YEAR` com regra temporal de anos completos, a quantidade é
 derivada exclusivamente do intervalo canônico presente no contrato:
 

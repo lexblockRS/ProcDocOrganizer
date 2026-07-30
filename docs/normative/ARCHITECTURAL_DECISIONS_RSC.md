@@ -136,3 +136,17 @@ Políticas atualmente consolidadas:
 Consequência: um intervalo constitui a informação factual de uma medição
 `DURATION`, mas sua transformação em anos, meses, dias ou quantidade
 normativa permanece posterior.
+
+## ADR-RSC-014 — Compatibilidade separada da validação e do cálculo
+
+Status: aceita.
+
+Decisão: a compatibilidade entre o tipo factual de uma `Measurement` e a regra
+normativa é avaliada em `ExecutionCompatibility`, depois da
+`ExecutionValidation` e antes do `CriterionExecutionContract`.
+
+Consequência: Validation responde somente por completude e consistência do
+fato; o Kernel executa somente aritmética sobre contratos preparados. Regras
+como `PER_YEAR`, `PER_MONTH`, `PER_EVENT` e `PER_PUBLICATION` reutilizam a
+mesma infraestrutura de compatibilidade sem introduzir verificações
+específicas nesses dois componentes.

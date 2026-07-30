@@ -13,6 +13,9 @@ from applications.rsc.execution_contracts import (
     ExecutionContractResolver,
     LegalComputability,
 )
+from applications.rsc.execution_compatibility import (
+    ExecutionCompatibilityEvaluator,
+)
 from applications.rsc.execution_facts import ExecutionFactBuilder
 from applications.rsc.execution_validation import ExecutionValidator
 from applications.rsc.scoring_kernel import (
@@ -56,11 +59,14 @@ def contracts(
         RULES,
         MANIFEST,
     ).validate(facts)
+    compatibilities = ExecutionCompatibilityEvaluator.from_file(
+        RULES
+    ).evaluate(facts, validations)
     return ExecutionContractResolver.from_files(
         RULES,
         MANIFEST,
         CRITERIA,
-    ).resolve(facts, validations)
+    ).resolve(facts, validations, compatibilities)
 
 
 class CriterionScoringKernelTests(unittest.TestCase):

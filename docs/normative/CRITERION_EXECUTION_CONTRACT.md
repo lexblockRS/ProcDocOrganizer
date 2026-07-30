@@ -6,13 +6,14 @@
 
 - um ExecutionFact;
 - sua ExecutionValidation;
+- sua ExecutionCompatibility;
 - sua regra declarativa;
 - a entrada correspondente do manifesto.
 
 ```text
-ExecutionFact + ExecutionValidation + ExecutionRule
-                         ↓
-             CriterionExecutionContract
+ExecutionFact + ExecutionValidation + ExecutionCompatibility + ExecutionRule
+                                  ↓
+                      CriterionExecutionContract
 ```
 
 O contrato é autocontido para consumo futuro. Ele não calcula pontuação, não
@@ -22,7 +23,8 @@ interpreta texto e não altera seus objetos de origem.
 
 O contrato contém:
 
-- IDs do contrato, fato, validação, regra, critério e requisito;
+- IDs do contrato, fato, validação, compatibilidade, regra, critério e
+  requisito;
 - estado de validação, computabilidade legal e computabilidade de execução;
 - valor normativo unitário resolvido;
 - regra de contagem e regra temporal;
@@ -35,7 +37,7 @@ O contrato contém:
 - itens não resolvidos;
 - rastreabilidades normativa, factual e de validação;
 - explicação;
-- ExecutionFact e ExecutionValidation de origem.
+- ExecutionFact, ExecutionValidation e ExecutionCompatibility de origem.
 
 ## 3. Regras tipadas
 
@@ -57,6 +59,7 @@ como valores declarativos.
 Measurement, Occurrences, CanonicalFacts e CanonicalDocuments são os mesmos
 objetos imutáveis existentes no ExecutionFact. A Validation completa também é
 preservada como `source_validation`.
+O resultado de compatibilidade é preservado como `source_compatibility`.
 
 Essa composição evita reconstrução, perda de informação ou divergência.
 
@@ -64,7 +67,8 @@ Essa composição evita reconstrução, perda de informação ou divergência.
 
 - um contrato por ExecutionFact;
 - um contrato por ExecutionValidation;
-- cobertura exata entre as duas coleções;
+- um contrato por ExecutionCompatibility;
+- cobertura exata entre as três coleções;
 - regra e manifesto correspondentes;
 - objetos-fonte imutáveis;
 - IDs determinísticos;
@@ -77,6 +81,7 @@ O contrato pode permanecer `BLOCKED`, `HUMAN_REVIEW_REQUIRED` ou
 jurídica ou satisfação do critério.
 
 `legal_computability` preserva a classificação normativa. A
-`execution_computability` informa apenas se o contrato possui valor e medição
-disponíveis após a Validation. Assim, um contrato pode ser juridicamente
+`execution_computability` informa se o contrato possui valor e medição
+disponíveis após a Validation e se o tipo da Measurement é compatível com a
+regra. Assim, um contrato pode ser juridicamente
 `TEXT_DEPENDENT` e operacionalmente `EXECUTABLE`.

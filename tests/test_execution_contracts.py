@@ -10,11 +10,13 @@ from applications.rsc.execution_contracts import (
     CriterionExecutionContractCollection,
     DuplicateExecutionContractError,
     ExecutionComputability,
-    ExecutionContractResolutionError,
     ExecutionContractResolver,
     InconsistentExecutionContractManifestError,
     LegalComputability,
-    MissingExecutionContractRuleError,
+)
+from applications.rsc.execution_compatibility import (
+    ExecutionCompatibilityError,
+    ExecutionCompatibilityEvaluator,
 )
 from applications.rsc.execution_facts import ExecutionFactCollection
 from applications.rsc.execution_validation import (
@@ -47,11 +49,21 @@ class ExecutionContractResolverTests(unittest.TestCase):
             MANIFEST,
             CRITERIA,
         )
+        self.compatibility = ExecutionCompatibilityEvaluator.from_file(
+            RULES
+        )
+
+    def resolve(self, facts, validations):
+        return self.resolver.resolve(
+            facts,
+            validations,
+            self.compatibility.evaluate(facts, validations),
+        )
 
     def test_resolves_one_complete_contract_per_fact_and_validation(self):
         facts, validations = sources()
 
-        result = self.resolver.resolve(facts, validations)
+        result = self.resolve(facts, validations)
 
         self.assertEqual(len(result), 1)
         contract = result.contracts[0]
@@ -65,6 +77,10 @@ class ExecutionContractResolverTests(unittest.TestCase):
         )
         self.assertIs(contract.source_execution_fact, facts.facts[0])
         self.assertIs(contract.source_validation, validations.validations[0])
+        self.assertEqual(
+            contract.compatibility_id,
+            contract.source_compatibility.compatibility_id,
+        )
 
     def test_duration_contract_is_executable_without_early_quantity(self):
         fact = prepared_fact(
@@ -78,7 +94,7 @@ class ExecutionContractResolverTests(unittest.TestCase):
             MANIFEST,
         ).validate(facts)
 
-        contract = self.resolver.resolve(
+        contract = self.resolve(
             facts,
             validations,
         ).contracts[0]
@@ -97,7 +113,7 @@ class ExecutionContractResolverTests(unittest.TestCase):
     def test_rule_is_materialized_without_execution(self):
         facts, validations = sources()
 
-        contract = self.resolver.resolve(
+        contract = self.resolve(
             facts,
             validations,
         ).contracts[0]
@@ -129,7 +145,7 @@ class ExecutionContractResolverTests(unittest.TestCase):
     def test_resolves_official_unit_value_without_calculation(self):
         facts, validations = sources()
 
-        contract = self.resolver.resolve(
+        contract = self.resolve(
             facts,
             validations,
         ).contracts[0]
@@ -154,7 +170,14 @@ class ExecutionContractResolverTests(unittest.TestCase):
         with self.assertRaises(
             InconsistentExecutionContractManifestError
         ):
-            resolver.resolve(facts, validations)
+            resolver.resolve(
+                facts,
+                validations,
+                ExecutionCompatibilityEvaluator(rules).evaluate(
+                    facts,
+                    validations,
+                ),
+            )
 
     def test_absent_singular_value_is_preserved_as_not_executable(self):
         rules = json.loads(RULES.read_text(encoding="utf-8"))
@@ -164,7 +187,14 @@ class ExecutionContractResolverTests(unittest.TestCase):
         resolver = ExecutionContractResolver(rules, manifest, criteria)
         facts, validations = sources()
 
-        contract = resolver.resolve(facts, validations).contracts[0]
+        contract = resolver.resolve(
+            facts,
+            validations,
+            ExecutionCompatibilityEvaluator(rules).evaluate(
+                facts,
+                validations,
+            ),
+        ).contracts[0]
 
         self.assertIsNone(contract.resolved_normative_value.value)
         self.assertEqual(
@@ -175,7 +205,7 @@ class ExecutionContractResolverTests(unittest.TestCase):
     def test_normative_value_traceability_reaches_decree_table_and_value(self):
         facts, validations = sources()
 
-        trace = self.resolver.resolve(
+        trace = self.resolve(
             facts,
             validations,
         ).contracts[0].resolved_normative_value.traceability
@@ -191,7 +221,7 @@ class ExecutionContractResolverTests(unittest.TestCase):
         facts, validations = sources()
         source = facts.facts[0]
 
-        contract = self.resolver.resolve(
+        contract = self.resolve(
             facts,
             validations,
         ).contracts[0]
@@ -216,8 +246,8 @@ class ExecutionContractResolverTests(unittest.TestCase):
             execution_fact_id="different-fact",
         )
 
-        with self.assertRaises(ExecutionContractResolutionError):
-            self.resolver.resolve(
+        with self.assertRaises(ExecutionCompatibilityError):
+            self.resolve(
                 facts,
                 ExecutionValidationCollection((changed,)),
             )
@@ -244,8 +274,8 @@ class ExecutionContractResolverTests(unittest.TestCase):
             criterion_id="unknown-criterion",
         )
 
-        with self.assertRaises(MissingExecutionContractRuleError):
-            self.resolver.resolve(
+        with self.assertRaises(ExecutionCompatibilityError):
+            self.resolve(
                 ExecutionFactCollection((source_fact,)),
                 ExecutionValidationCollection((source_validation,)),
             )
@@ -253,7 +283,7 @@ class ExecutionContractResolverTests(unittest.TestCase):
     def test_traceability_preserves_all_three_origins(self):
         facts, validations = sources()
 
-        contract = self.resolver.resolve(
+        contract = self.resolve(
             facts,
             validations,
         ).contracts[0]
@@ -274,7 +304,7 @@ class ExecutionContractResolverTests(unittest.TestCase):
     def test_blocking_validation_is_preserved_not_revalidated(self):
         facts, validations = sources(complete=False)
 
-        contract = self.resolver.resolve(
+        contract = self.resolve(
             facts,
             validations,
         ).contracts[0]
@@ -288,7 +318,7 @@ class ExecutionContractResolverTests(unittest.TestCase):
 
     def test_duplicate_contracts_are_rejected(self):
         facts, validations = sources()
-        contract = self.resolver.resolve(
+        contract = self.resolve(
             facts,
             validations,
         ).contracts[0]
@@ -299,8 +329,8 @@ class ExecutionContractResolverTests(unittest.TestCase):
     def test_resolution_is_immutable_repeatable_and_deterministic(self):
         facts, validations = sources()
 
-        first = self.resolver.resolve(facts, validations)
-        second = self.resolver.resolve(facts, validations)
+        first = self.resolve(facts, validations)
+        second = self.resolve(facts, validations)
 
         self.assertEqual(first, second)
         self.assertEqual(

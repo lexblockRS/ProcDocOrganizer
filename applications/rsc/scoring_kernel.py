@@ -156,11 +156,22 @@ class CriterionScoringKernel:
         formula = (
             f"{normalized} × {operand} = {result}" if executed else None
         )
+        quantitative_details = ""
+        if contract.counting_rule.rule_type == "PER_EVENT":
+            quantitative_details = (
+                f"Measurement {contract.measurement.measurement_type}; "
+                f"unidade factual {contract.measurement.unit}; "
+                f"quantidade de eventos "
+                f"{normalized if normalized is not None else 'ausente'}; "
+                f"valor normativo por evento "
+                f"{operand if operand is not None else 'ausente'}; "
+            )
         explanation = (
             f"Contrato {contract.contract_id}; regra "
             f"{contract.counting_rule.rule_type}; quantidade "
             f"{normalized if normalized is not None else 'ausente'}; "
             f"operando {operand if operand is not None else 'ausente'}; "
+            f"{quantitative_details}"
             f"{temporal_details}"
             f"{formula if formula is not None else reason}."
         )
