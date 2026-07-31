@@ -14,9 +14,21 @@ from PySide6.QtWidgets import QApplication
 
 from applications import RscApplication
 from applications.rsc.normative_catalog import OFFICIAL_NORMATIVE_CATALOG
+from applications.rsc.project_explorer_composition import (
+    create_project_explorer_service,
+)
+from core.application_lifecycle_host import ApplicationLifecycleHost
 from core.application_registry import ApplicationRegistry
+from core.project_manager import ProjectManager
+from core.project_session_factory import ProjectSessionFactory
 from platform_sdk import Document, ProjectState
 from ui.project_explorer import ProjectExplorerWindow
+from ui.workspace_dashboard import WorkspaceDashboardView
+from presentation import (
+    ApplicationStateStore, NavigationController, NavigationIntent,
+    PerspectiveDefinition, PerspectiveId, PerspectiveStore,
+    PresentationContextStore, SelectionStore, WorkspaceStore,
+)
 
 
 class ProjectExplorerWindowTests(unittest.TestCase):
@@ -27,23 +39,66 @@ class ProjectExplorerWindowTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary_directory = TemporaryDirectory()
         self.root = Path(self.temporary_directory.name)
-        self.database_path = self.root / "projects.sqlite"
-        self.workspace_base = self.root / "workspaces"
         self.registry = ApplicationRegistry((RscApplication(),))
+        self.manager = ProjectManager()
+        self.physical_project = self.manager.create_project(
+            "Projeto", self.root, application_id="rsc"
+        )
+        self.lifecycle_host = ApplicationLifecycleHost()
+        self.session = ProjectSessionFactory(self.registry).create(
+            self.physical_project
+        )
+        self.lifecycle_host.activate_session(self.session)
         self.window = self._window()
 
     def tearDown(self) -> None:
+        self.window.unbind_service()
+        self.service.close()
+        self.lifecycle_host.dispose_session(self.session)
         self.window.close()
         self.window.deleteLater()
         self.app.processEvents()
         self.temporary_directory.cleanup()
 
     def _window(self) -> ProjectExplorerWindow:
-        return ProjectExplorerWindow(
-            database_path=self.database_path,
-            workspace_base=self.workspace_base,
-            application_registry=self.registry,
+        self.selections = SelectionStore()
+        self.perspectives = PerspectiveStore()
+        self.perspectives.register(PerspectiveDefinition(
+            PerspectiveId("workspace_dashboard"), "Dashboard", 1, None,
+            False, lambda: object(),
+        ))
+        self.workspace_store = WorkspaceStore(self.perspectives)
+        self.context = PresentationContextStore(
+            ApplicationStateStore(), self.selections, self.perspectives,
+            self.workspace_store,
         )
+        self.navigation = NavigationController(
+            self.perspectives, self.workspace_store, self.selections,
+            presentation_context=self.context,
+        )
+        self.navigation.navigate_to(PerspectiveId("workspace_dashboard"))
+        window = ProjectExplorerWindow(
+            navigation_controller=self.navigation,
+            workspace_store=self.workspace_store,
+        )
+        self.service = create_project_explorer_service(self.session)
+        window.bind_service(self.service)
+        return window
+
+    def _reopen(self):
+        self.window.unbind_service()
+        self.service.close()
+        self.lifecycle_host.dispose_session(self.session)
+        self.physical_project = self.manager.open_project(
+            self.physical_project.project_path
+        )
+        self.session = ProjectSessionFactory(self.registry).create(
+            self.physical_project
+        )
+        self.lifecycle_host.activate_session(self.session)
+        self.service = create_project_explorer_service(self.session)
+        self.window.bind_service(self.service)
+        return self.window.project
 
     def test_window_contains_only_project_actions_and_information(self):
         menu_titles = tuple(
@@ -51,22 +106,19 @@ class ProjectExplorerWindowTests(unittest.TestCase):
         )
 
         self.assertEqual(menu_titles, ("Arquivo", "Ajuda"))
-        self.assertEqual(self.window.name_value.text(), "—")
+        self.assertEqual(self.window.name_value.text(), "Projeto")
         self.assertEqual(
             self.window.statusBar().currentMessage(),
-            "Nenhum projeto aberto.",
+            "Projeto carregado.",
         )
-        self.assertFalse(self.window.action_close.isEnabled())
+        self.assertTrue(self.window.action_close.isEnabled())
         self.assertEqual(self.window.evidence_list.count(), 0)
-        self.assertFalse(self.window.add_evidence_button.isEnabled())
+        self.assertTrue(self.window.add_evidence_button.isEnabled())
 
     def test_create_close_and_reopen_after_application_restart(self):
-        created = self.window.create_project(
-            name="Projeto do usuário",
-            application_id="rsc",
-        )
+        created = self.window.project
         aggregate_id = created.aggregate_id
-        workspace_root = self.window.current_workspace.root
+        workspace_root = self.window.workspace_root
 
         self.assertTrue(workspace_root.is_dir())
         self.assertEqual(self.window.name_value.text(), created.name)
@@ -82,26 +134,22 @@ class ProjectExplorerWindowTests(unittest.TestCase):
         self.assertEqual(self.window.revision_value.text(), "0")
         self.assertEqual(
             self.window.statusBar().currentMessage(),
-            "Projeto salvo.",
+            "Projeto carregado.",
         )
 
-        self.window.close_project()
-        self.assertIsNone(self.window.current_project)
+        self.window.unbind_service()
+        self.assertIsNone(self.window.project)
         self.assertTrue(workspace_root.is_dir())
         self.assertEqual(self.window.name_value.text(), "—")
 
-        self.window.close()
-        self.window.deleteLater()
-        self.app.processEvents()
-        self.window = self._window()
-        reopened = self.window.open_project_by_id(aggregate_id)
+        reopened = self._reopen()
 
         self.assertEqual(reopened.aggregate_id, aggregate_id)
         self.assertEqual(reopened.state, created.state)
         self.assertEqual(reopened.revision, created.revision)
         self.assertEqual(reopened.application_id, created.application_id)
         self.assertEqual(
-            self.window.current_workspace.root,
+            self.window.workspace_root,
             workspace_root,
         )
         self.assertEqual(
@@ -113,26 +161,43 @@ class ProjectExplorerWindowTests(unittest.TestCase):
             "Projeto carregado.",
         )
 
-    def test_close_project_does_not_delete_database_or_workspace(self):
-        created = self.window.create_project(
-            name="Projeto persistente",
-            application_id="rsc",
-        )
-        workspace_root = self.window.current_workspace.root
+    def test_dashboard_is_initial_project_view_and_tracks_operations(self):
+        project = self.window.project
 
-        self.window.close_project()
-        reopened = self.window.open_project_by_id(created.aggregate_id)
+        self.assertEqual(self.window.workspace_tabs.currentIndex(), 0)
+        self.assertIsInstance(
+            self.window.workspace_tabs.widget(0), WorkspaceDashboardView
+        )
+        self.assertEqual(
+            self.window._dashboard_view.dashboard.summary.project_name,
+            project.name,
+        )
+
+        evidence = self.window.create_evidence(title="Documento pendente")
+        action = self.window._dashboard_view.dashboard.priority_actions[0]
+        self.assertEqual(action.intent.target_id, evidence.aggregate_id)
+
+        self.window._dispatch_navigation(action.intent)
+
+        self.assertEqual(self.window.workspace_tabs.currentIndex(), 1)
+        self.assertEqual(
+            self.window.evidence_list.currentItem().data(
+                Qt.ItemDataRole.UserRole
+            ),
+            evidence.aggregate_id,
+        )
+
+    def test_close_project_does_not_delete_database_or_workspace(self):
+        created = self.window.project
+        workspace_root = self.window.workspace_root
+
+        reopened = self._reopen()
 
         self.assertEqual(reopened.aggregate_id, created.aggregate_id)
-        self.assertTrue(self.database_path.is_file())
+        self.assertTrue((workspace_root / "database.db").is_file())
         self.assertTrue(workspace_root.is_dir())
 
     def test_evidence_crud_is_scoped_to_current_project(self):
-        self.window.create_project(
-            name="Projeto com evidências",
-            application_id="rsc",
-        )
-
         created = self.window.create_evidence(title="Portaria")
         self.assertEqual(self.window.evidence_list.count(), 1)
         self.assertEqual(
@@ -156,17 +221,10 @@ class ProjectExplorerWindowTests(unittest.TestCase):
         self.assertEqual(self.window.evidence_list.count(), 0)
 
     def test_evidence_is_reloaded_with_project(self):
-        project = self.window.create_project(
-            name="Projeto reaberto",
-            application_id="rsc",
-        )
+        project = self.window.project
         evidence = self.window.create_evidence(title="Certidão")
 
-        self.window.close()
-        self.window.deleteLater()
-        self.app.processEvents()
-        self.window = self._window()
-        self.window.open_project_by_id(project.aggregate_id)
+        self._reopen()
 
         self.assertEqual(self.window.evidence_list.count(), 1)
         item = self.window.evidence_list.item(0)
@@ -177,10 +235,7 @@ class ProjectExplorerWindowTests(unittest.TestCase):
         )
 
     def test_execution_facts_follow_selected_evidence_and_reopen(self):
-        project = self.window.create_project(
-            name="Projeto factual",
-            application_id="rsc",
-        )
+        project = self.window.project
         first_evidence = self.window.create_evidence(title="Portaria")
         first_fact = self.window.create_execution_fact(
             fact_type="DESIGNACAO",
@@ -204,11 +259,7 @@ class ProjectExplorerWindowTests(unittest.TestCase):
             self.window.execution_fact_list.item(0).text(),
         )
 
-        self.window.close()
-        self.window.deleteLater()
-        self.app.processEvents()
-        self.window = self._window()
-        self.window.open_project_by_id(project.aggregate_id)
+        self._reopen()
         self.window.evidence_list.setCurrentRow(0)
 
         self.assertEqual(self.window.execution_fact_list.count(), 1)
@@ -224,10 +275,6 @@ class ProjectExplorerWindowTests(unittest.TestCase):
         )
 
     def test_execution_fact_can_be_removed(self):
-        self.window.create_project(
-            name="Projeto factual",
-            application_id="rsc",
-        )
         self.window.create_evidence(title="Portaria")
         fact = self.window.create_execution_fact(
             fact_type="ATIVIDADE",
@@ -241,10 +288,6 @@ class ProjectExplorerWindowTests(unittest.TestCase):
         self.assertEqual(self.window.execution_fact_list.count(), 0)
 
     def test_execution_binding_uses_catalog_and_preserves_fact(self):
-        self.window.create_project(
-            name="Projeto com enquadramento",
-            application_id="rsc",
-        )
         self.window.create_evidence(title="Portaria")
         fact = self.window.create_execution_fact(
             fact_type="DESIGNACAO",
@@ -272,14 +315,10 @@ class ProjectExplorerWindowTests(unittest.TestCase):
         self.assertEqual(self.window.binding_value.text(), "—")
 
     def test_execute_evaluation_shows_summary(self):
-        self.window.create_project(
-            name="Projeto executável",
-            application_id="rsc",
-        )
         evidence = self.window.create_evidence(title="Ata")
         self.window._service.attach_document(
             evidence.aggregate_id,
-            project_id=self.window.current_project.aggregate_id,
+            project_id=self.window.project.aggregate_id,
             document=Document(
                 document_id="ata-documento",
                 name="ata.pdf",
@@ -329,7 +368,7 @@ class ProjectExplorerWindowTests(unittest.TestCase):
             item == "database" or item.startswith("database.")
             for item in imports
         ))
-        self.assertIn(
+        self.assertNotIn(
             "applications.rsc.project_explorer_composition", imports
         )
 

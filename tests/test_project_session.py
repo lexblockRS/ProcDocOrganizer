@@ -8,6 +8,7 @@ from core.project_controller import ProjectController
 from core.project_manager import ProjectManager
 from core.project_session import ProjectSession
 from core.project_session_factory import ProjectSessionFactory
+from core.application_lifecycle_host import ApplicationLifecycleHost
 
 
 class ServiceControllerSpy:
@@ -103,10 +104,15 @@ def session(project, marker, application=None):
 def controller_for_session_tests(factory, active_session=None):
     controller = ProjectController.__new__(ProjectController)
     controller.session_factory = factory
-    controller.session = active_session
-    controller.state = StateSpy(
-        active_session.project if active_session is not None else None
-    )
+    controller.lifecycle_host = ApplicationLifecycleHost()
+    if active_session is not None:
+        controller.lifecycle_host._current_session = active_session
+    controller._prepare_session_consumers = None
+    controller._commit_session_consumers = None
+    controller._rollback_session_consumers = None
+    controller._close_session_consumers = None
+    from core.project_state import ProjectState
+    controller.state = ProjectState(controller.lifecycle_host)
     controller.window = WindowSpy()
     controller.selected_document = object()
     controller.search_controller = ServiceControllerSpy()

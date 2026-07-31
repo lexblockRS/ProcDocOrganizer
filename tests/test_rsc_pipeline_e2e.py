@@ -15,6 +15,7 @@ from core.project_controller import ProjectController
 from core.project_manager import ProjectManager
 from core.project_session_factory import ProjectSessionFactory
 from core.project_state import ProjectState
+from core.application_lifecycle_host import ApplicationLifecycleHost
 from models import EvidenceDraft, EvidenceSourceCandidate
 from services.processing import ProcessingRepository, ProcessingResult
 from ui.contribution_installer import DesktopContributionInstaller
@@ -91,15 +92,17 @@ class RscPipelineEndToEndTests(unittest.TestCase):
             )
             window = MainWindow()
             self.addCleanup(window.close)
+            lifecycle_host = ApplicationLifecycleHost()
             controller = ProjectController(
                 window,
                 manager,
-                ProjectState(),
+                ProjectState(lifecycle_host),
                 DesktopContributionInstaller(window),
                 session_factory=factory,
                 application_registry=ApplicationRegistry(
                     [RscApplication()]
                 ),
+                lifecycle_host=lifecycle_host,
             )
             controller._load_project(project)
 
@@ -264,10 +267,11 @@ class RscPipelineEndToEndTests(unittest.TestCase):
             other_common = manager.create_project("Comum 2", root)
             window = MainWindow()
             self.addCleanup(window.close)
+            lifecycle_host = ApplicationLifecycleHost()
             controller = ProjectController(
                 window,
                 manager,
-                ProjectState(),
+                ProjectState(lifecycle_host),
                 DesktopContributionInstaller(window),
                 session_factory=ProjectSessionFactory(
                     ApplicationRegistry([RscApplication()])
@@ -275,6 +279,7 @@ class RscPipelineEndToEndTests(unittest.TestCase):
                 application_registry=ApplicationRegistry(
                     [RscApplication()]
                 ),
+                lifecycle_host=lifecycle_host,
             )
 
             controller._load_project(common)

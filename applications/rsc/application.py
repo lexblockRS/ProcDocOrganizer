@@ -79,6 +79,15 @@ class RscApplication:
             database_path=context.shared_services["database_path"],
         )
 
+    def create_productive_service(self, session):
+        """Compõe a facade produtiva somente para o Host Desktop ativo."""
+
+        from applications.rsc.project_explorer_composition import (
+            create_project_explorer_service,
+        )
+
+        return create_project_explorer_service(session)
+
     def transition(
         self,
         transition: ApplicationLifecycleTransition,

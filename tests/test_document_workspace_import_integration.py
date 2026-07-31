@@ -19,6 +19,7 @@ from core.project_controller import ProjectController
 from core.project_manager import ProjectManager
 from core.project_session_factory import ProjectSessionFactory
 from core.project_state import ProjectState
+from core.application_lifecycle_host import ApplicationLifecycleHost
 from models import DocumentProcessingStatus, DocumentType
 from presentation import (
     NotificationLevel,
@@ -39,13 +40,15 @@ class DocumentWorkspaceImportIntegrationTests(unittest.TestCase):
         self.temporary_directory = TemporaryDirectory()
         self.root = Path(self.temporary_directory.name)
         self.window = MainWindow()
-        self.state = ProjectState()
+        self.lifecycle_host = ApplicationLifecycleHost()
+        self.state = ProjectState(self.lifecycle_host)
         self.manager = ProjectManager()
         registry = ApplicationRegistry([RscApplication()])
         self.controller = ProjectController(
             window=self.window,
             manager=self.manager,
             state=self.state,
+            lifecycle_host=self.lifecycle_host,
             contribution_installer=DesktopContributionInstaller(
                 self.window
             ),

@@ -15,6 +15,7 @@ from core.project_controller import ProjectController
 from core.project_manager import ProjectManager
 from core.project_session_factory import ProjectSessionFactory
 from core.project_state import ProjectState
+from core.application_lifecycle_host import ApplicationLifecycleHost
 from models import EvidenceDraft
 from presentation import NotificationLevel, SelectionKind
 from services import EvidenceManagementService, EvidenceServiceError
@@ -32,12 +33,14 @@ class EvidenceWorkspaceAggregateIntegrationTests(unittest.TestCase):
         self.temporary_directory = TemporaryDirectory()
         self.root = Path(self.temporary_directory.name)
         self.window = MainWindow()
-        self.state = ProjectState()
+        self.lifecycle_host = ApplicationLifecycleHost()
+        self.state = ProjectState(self.lifecycle_host)
         registry = ApplicationRegistry([RscApplication()])
         self.controller = ProjectController(
             window=self.window,
             manager=ProjectManager(),
             state=self.state,
+            lifecycle_host=self.lifecycle_host,
             contribution_installer=DesktopContributionInstaller(
                 self.window
             ),

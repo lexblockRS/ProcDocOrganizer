@@ -6,11 +6,6 @@ Mantém informações sobre o projeto atualmente aberto.
 
 from __future__ import annotations
 
-from typing import Optional
-
-from models.project import Project
-
-
 class ProjectState:
     """
     Mantém o estado atual da aplicação.
@@ -19,19 +14,21 @@ class ProjectState:
     Ela apenas informa qual projeto está aberto no momento.
     """
 
-    def __init__(self):
-
-        self._current_project: Optional[Project] = None
+    def __init__(self, lifecycle_host):
+        if lifecycle_host is None:
+            raise ValueError("lifecycle_host é obrigatório.")
+        self._lifecycle_host = lifecycle_host
 
     # ------------------------------------------------------------------
 
     @property
-    def current_project(self) -> Optional[Project]:
+    def current_project(self):
         """
         Retorna o projeto atualmente aberto.
         """
 
-        return self._current_project
+        session = self._lifecycle_host.current_session
+        return None if session is None else session.project
 
     # ------------------------------------------------------------------
 
@@ -41,22 +38,4 @@ class ProjectState:
         Indica se existe um projeto aberto.
         """
 
-        return self._current_project is not None
-
-    # ------------------------------------------------------------------
-
-    def open_project(self, project: Project):
-        """
-        Define o projeto atualmente aberto.
-        """
-
-        self._current_project = project
-
-    # ------------------------------------------------------------------
-
-    def close_project(self):
-        """
-        Fecha o projeto atual.
-        """
-
-        self._current_project = None
+        return self._lifecycle_host.current_session is not None

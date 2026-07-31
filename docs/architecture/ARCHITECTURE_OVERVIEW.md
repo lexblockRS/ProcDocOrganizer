@@ -1,8 +1,20 @@
 # ProcDocOrganizer — Architecture Overview
 
+## Dashboard 2.0
+
+Na estabilização C-004, Coverage e Insights são compostos uma única vez no Application Service/composition root e compartilhados com Dashboard e Review. O Dashboard não registra Providers. Ações operacionais usam contrato próprio e não Navigation Intent.
+
+O Dashboard é consumidor passivo de `WorkspaceSnapshot`, `CoverageResult` e `InsightCollection`. O serviço coordena os contratos oficiais, o ViewModel projeta DTOs imutáveis e a View apenas renderiza e emite Navigation Intents. Nenhuma métrica, Insight ou regra normativa nasce no Dashboard. Consulte [DASHBOARD_2.md](DASHBOARD_2.md).
+
+## Review Workspace
+
+A fila do Review é composta por Insights; Findings permanecem em Coverage. Seus filtros são `WorkspaceFilter` mantidos em `WorkspaceSnapshot.active_filters`.
+
+O Review Workspace usa Coverage para resumos e Insights ativos para formar uma fila operacional filtrável e determinística. Seus itens armazenam apenas `ResourceIdentity` e emitem Navigation Intents; a atualização do Inspector pertence ao fluxo oficial do Workspace. Consulte [REVIEW_WORKSPACE.md](REVIEW_WORKSPACE.md).
+
 **Escopo:** núcleo RSC
-**Release de referência:** Alpha 0.7
-**Baseline:** Beta Readiness
+**Release de referência:** Beta 1.1
+**Baseline:** Workspace Dashboard
 **Status:** referência arquitetural principal
 
 ## 1. Visão geral
@@ -164,9 +176,108 @@ depender de SQLite, ZIP, caminhos físicos ou schemas.
 - Infrastructure → criação de regra de negócio;
 - catálogo → estado factual de um processo.
 
-O Project Explorer é a composition root visual, mas compõe suas dependências
-por uma factory de aplicação e executa casos de uso pelo
-`ProjectExplorerApplicationService`. O módulo visual não importa SQLite.
+A `MainWindow` é o único shell produtivo. A composition root iniciada por
+`app.py` monta explicitamente o Workspace produtivo e o
+`ProjectExplorerApplicationService`; o Project Explorer permanece uma
+perspectiva operacional hospedada pelo shell e o módulo visual não importa
+SQLite.
+
+### 2.6 Workspace Dashboard
+
+O Dashboard é a tela inicial de um projeto aberto e segue o fluxo
+`Project → WorkspaceDashboardService → WorkspaceDashboardViewModel → DTOs →
+WorkspaceDashboardView`. O serviço consolida exclusivamente informações
+operacionais e reapresenta pontuação já produzida por uma avaliação; não
+executa Pipeline, não acessa Kernel e não recalcula resultados.
+
+A View consome somente DTOs imutáveis de apresentação e emite intenções de
+navegação. Ela não conhece agregados, scores, stores ou SQLite. O Project
+Explorer liga essas intenções ao fluxo `Dashboard → Project Explorer →
+Evaluation → Results → Evaluation Report`. Detalhes constam em
+[WORKSPACE_DASHBOARD.md](WORKSPACE_DASHBOARD.md).
+
+### 2.7 Presentation Workspace Navigation
+
+A ADR-034 evolui a infraestrutura existente sem criar mecanismo paralelo.
+Views emitem `NavigationIntent` tipada; o `NavigationController` atua como
+Navigation Service e coordena uma transição publicada atomicamente pelo
+`PresentationContextStore`. O `WorkspaceSnapshot` contém somente IDs e estado
+de apresentação imutável, incluindo perspectiva, seleção e filtros.
+
+Os contratos não dependem de Qt, Web, CLI, domínio ou persistência. O histórico
+linear registra a Intent e o snapshot resultante. Um cursor oferece voltar,
+avançar e restaurar a entrada atual; restaurações usam o snapshot como
+autoridade, não repetem a Intent e não criam novas entradas. Nova navegação
+após voltar descarta o ramo futuro.
+
+### 2.7.1 Shell produtivo
+
+O fluxo real é `app.py → Application → MainWindow`. A composition root registra
+explicitamente `workspace_dashboard`, `review_workspace`, `project_explorer`,
+`results` e `evaluation_report`, preservando as perspectivas legadas. Intents
+de Resource são roteadas para o Project Explorer; Evaluation e Report são
+perspectivas próprias. Todas as transições passam pelo mesmo
+`NavigationController`.
+
+### 2.8 Resource Infrastructure
+
+A ADR-035 define Resource como a única projeção navegável da apresentação.
+`ResourceIdentity` separa tipo e identificador dos dados de exibição;
+`ResourceRelationship` aponta somente para outra identidade; e
+`PresentationAction` declara capacidades sem executá-las.
+
+Resources são DTOs imutáveis produzidos pelo contrato `ProjectionService`.
+Os projetores iniciais de Document, Evidence e Requirement são neutros e
+independentes de toolkit, domínio e persistência. `ResourceCollection`
+representa resultados de consulta e não constitui Resource ou Aggregate.
+
+O Workspace preserva somente identidades, nunca Resources completos. A
+infraestrutura está detalhada em
+[RESOURCE_INFRASTRUCTURE.md](RESOURCE_INFRASTRUCTURE.md).
+
+### 2.9 Resource Inspector
+
+O Resource Inspector consome Resources por meio do fluxo `Workspace Snapshot
+→ ResourceIdentity → ProjectionService → Resource → ViewModel → View`. A
+composition root resolve o projetor para Document, Evidence ou Requirement e
+atualiza o Inspector quando o contexto consolidado muda.
+
+O ViewModel cria DTOs imutáveis e Navigation Intents. A View apenas renderiza
+esses DTOs e emite as Intents, sem acessar Stores, domínio, persistência,
+Projection Services ou outras Views. Estados vazios, projeções indisponíveis e
+seções sem conteúdo são apresentados explicitamente.
+
+Detalhes constam em [RESOURCE_INSPECTOR.md](RESOURCE_INSPECTOR.md).
+
+### 2.10 Workspace Insights
+
+A ADR-036 define Insight como projeção imutável, explicável, derivada e não
+persistente de uma condição do Workspace. `InsightIdentity` estabiliza origem,
+código e discriminador; referências apontam apenas para `ResourceIdentity`; e
+categorias, severidades e ações possuem finalidade de apresentação.
+
+`WorkspaceInsightProvider` produz Insights para uma revisão específica. O
+`WorkspaceInsightService` coordena Providers explicitamente registrados,
+valida origem e revisão, rejeita identidades duplicadas e produz uma
+`InsightCollection` deterministicamente ordenada.
+
+A fundação inicial contém apenas `ProjectEvaluationInsightProvider`. Não há
+integração com Dashboard, Inspector ou qualquer View. Detalhes constam em
+[WORKSPACE_INSIGHTS.md](WORKSPACE_INSIGHTS.md).
+
+### 2.11 Coverage Analyzer
+
+A ADR-037 estabelece Coverage como análise observacional estruturada. Um
+`CoverageInput` imutável normaliza referências operacionais; o
+`CoverageAnalyzer` produz `CoverageResult` com escopos Document, Evidence,
+Factual, Normative e Overall, além de Findings explicáveis.
+
+Estados normativos são somente contados e preservados como recebidos. Sem
+Evaluation, a cobertura normativa é `NOT_EVALUATED`. A cobertura geral utiliza
+contagens e razão exata, sem média ou percentual autoritativo. Não existe
+integração visual ou com Insights nesta etapa.
+
+Detalhes constam em [COVERAGE_ANALYZER.md](COVERAGE_ANALYZER.md).
 
 ## 3. Pipeline factual e normativo
 
@@ -666,6 +777,14 @@ vazar Aggregate Roots, schemas SQLite ou detalhes do desktop.
 | Relações entre agregados são por identidade | ciclos de vida e fronteiras transacionais permanecem independentes |
 | UI trabalha por Stores, controllers e projeções | estado visual não se torna fonte de verdade |
 | Infraestrutura implementa portas | detalhes técnicos não governam o domínio |
+| `ApplicationLifecycleHost` é a autoridade do Project ativo | Controller, View e serviços não mantêm lifecycle paralelo |
+| Ativação de sessão é transacional | falhas preservam sessão, Workspace e consumidores anteriores |
+| Serviços produtivos são project-scoped | todos operam sobre o `database.db` do `.pdop` ativo |
+| `DocumentRepository` é o catálogo documental | Documents independentes chegam ao Coverage |
+| Revisões operacional, visual e de Evaluation são distintas | nenhuma revisão é inferida de outra |
+
+Detalhes do lifecycle consolidado, rollback, revisão operacional e tratamento
+do banco produtivo legado estão em `PROJECT_AUTHORITY.md`.
 
 ## Estado e recomendações
 

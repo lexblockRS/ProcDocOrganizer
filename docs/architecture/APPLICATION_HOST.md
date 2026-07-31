@@ -116,3 +116,30 @@ Evoluções possíveis incluem ícones resolvidos por resource provider,
 localização de metadados, permissões por capacidade, ativação seletiva,
 assinatura de módulos e instalação externa. Essas evoluções não devem fazer o
 Host depender de domínios concretos.
+
+## Composition root produtiva
+
+O ponto de entrada oficial segue `app.py → core.application.Application →
+PlatformMainWindow`. `Application` descobre o catálogo uma única vez, cria o
+`ApplicationRegistry`, monta a `MainWindow` e injeta explicitamente a instância
+operacional do Project Explorer com o mesmo `NavigationController` e o mesmo
+`WorkspaceStore` do shell.
+
+A `MainWindow` registra Dashboard, Review Workspace, Project Explorer, Results
+Explorer e Evaluation Report como perspectivas. A instância operacional não é
+um segundo shell e nenhuma composição especial de testes é necessária. Abrir
+ou fechar o Project atualiza o contexto derivado da sessão oficial; troca e
+fechamento limpam o histórico linear.
+
+## Autoridade de Project e ativação transacional
+
+Na C-007, `ApplicationLifecycleHost.current_session` passou a ser a autoridade
+única da sessão ativa. A instância é criada pela composition root e injetada;
+não existe fallback global. `ProjectController` coordena candidatos sem guardar
+uma sessão própria e `ProjectState` é somente uma projeção de compatibilidade.
+
+O Host ativa o runtime candidato, publica a sessão e executa a vinculação final
+como uma transação. Qualquer falha restaura a sessão anterior e descarta a
+candidata. Runtime e serviços anteriores só são descartados depois que todos os
+consumidores confirmam a nova sessão. O fluxo completo está em
+`PROJECT_AUTHORITY.md`.

@@ -30,6 +30,7 @@ class SQLiteEvidenceRepository:
         self,
         project_or_database: Project | str | Path,
         now_factory: Callable[[], str] | None = None,
+        revision_store=None,
     ) -> None:
         self.database_path = (
             project_or_database.project_path / project_or_database.database
@@ -37,6 +38,7 @@ class SQLiteEvidenceRepository:
             else Path(project_or_database)
         )
         self._now_factory = now_factory or Evidence.now
+        self._revision_store = revision_store
 
     def add(self, evidence: Evidence) -> Evidence:
         evidence = self._validate_evidence(evidence)
@@ -50,6 +52,7 @@ class SQLiteEvidenceRepository:
                         f"VALUES ({', '.join('?' for _ in self.COLUMNS)})",
                         self._values(evidence),
                     )
+            self._increment_revision("evidence.created")
             return evidence
         except EvidenceRepositoryError:
             raise
@@ -105,6 +108,7 @@ class SQLiteEvidenceRepository:
                         f"UPDATE evidences SET {assignments} WHERE id = ?",
                         self._values(persisted)[1:] + (persisted.id,),
                     )
+            self._increment_revision("evidence.updated")
             return persisted
         except EvidenceRepositoryError:
             raise
@@ -116,7 +120,14 @@ class SQLiteEvidenceRepository:
         with ProjectDatabase(self.database_path) as database:
             with database.transaction() as connection:
                 cursor = connection.execute("DELETE FROM evidences WHERE id = ?", (normalized,))
-                return cursor.rowcount > 0
+                removed = cursor.rowcount > 0
+        if removed:
+            self._increment_revision("evidence.deleted")
+        return removed
+
+    def _increment_revision(self, reason: str) -> None:
+        if self._revision_store is not None:
+            self._revision_store.increment(reason)
 
     def exists(self, evidence_id: str) -> bool:
         normalized = Evidence._uuid(evidence_id)

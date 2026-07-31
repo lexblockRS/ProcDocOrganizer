@@ -13,6 +13,7 @@ from core.application_registry import ApplicationRegistry
 from core.project_manager import ProjectManager
 from core.project_controller import ProjectController
 from core.project_state import ProjectState
+from core.application_lifecycle_host import ApplicationLifecycleHost
 from core.project_session_factory import ProjectSessionFactory
 from models import CreateEvidenceRequest
 from presentation.functional_assignments import (
@@ -176,7 +177,8 @@ class FunctionalAssignmentPresentationTests(unittest.TestCase):
     def test_real_composition_shows_action_only_for_rsc_project(self):
         window = MainWindow()
         self.addCleanup(window.close)
-        state = ProjectState()
+        lifecycle_host = ApplicationLifecycleHost()
+        state = ProjectState(lifecycle_host)
         controller = ProjectController(
             window,
             ProjectManager(),
@@ -184,6 +186,7 @@ class FunctionalAssignmentPresentationTests(unittest.TestCase):
             DesktopContributionInstaller(window),
             session_factory=self.factory,
             application_registry=ApplicationRegistry([RscApplication()]),
+            lifecycle_host=lifecycle_host,
         )
         common = ProjectManager().create_project(
             "Comum UI", Path(self.temporary_directory.name)

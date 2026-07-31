@@ -17,6 +17,7 @@ from services.search import SearchService, SqliteFtsSearchIndex
 
 from .application_registry import ApplicationRegistry
 from .project_session import ProjectSession
+from .operational_project_state import OperationalProjectStateStore
 
 
 class ProjectSessionFactory:
@@ -37,7 +38,8 @@ class ProjectSessionFactory:
             project
         )
         database_path = project.project_path / project.database
-        document_repository = DocumentRepository(project)
+        operational_state = OperationalProjectStateStore(database_path)
+        document_repository = DocumentRepository(project, operational_state)
         document_repository.load()
         document_indexer = DocumentIndexer(database_path)
         document_processor = DocumentProcessor(
@@ -51,7 +53,7 @@ class ProjectSessionFactory:
             SqliteFtsSearchIndex(database_path)
         )
         evidence_service = EvidenceManagementService(
-            SQLiteEvidenceRepository(project),
+            SQLiteEvidenceRepository(project, revision_store=operational_state),
             SearchDocumentSourceResolver(project),
         )
         document_import_service = DocumentImportService(

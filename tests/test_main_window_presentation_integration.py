@@ -11,6 +11,7 @@ from presentation import (
     ApplicationState,
     ApplicationStateStore,
     NavigationController,
+    NavigationIntent,
     Notification,
     NotificationCenter,
     NotificationLevel,
@@ -24,6 +25,8 @@ from presentation import (
     SelectionKind,
     SelectionStore,
     WorkspaceStore,
+    ResourceInspectorState,
+    ResourceType,
 )
 from ui.main_window import MainWindow
 from ui.workspace_host import WorkspaceHost
@@ -143,6 +146,85 @@ class MainWindowPresentationIntegrationTests(unittest.TestCase):
         self.assertIs(
             self.window.selection_store.snapshot.selection.identity.kind,
             SelectionKind.NONE,
+        )
+
+    def test_history_actions_restore_workspace_and_reflect_boundaries(self):
+        self.assertFalse(self.window.action_back.isEnabled())
+        self.assertFalse(self.window.action_forward.isEnabled())
+
+        self.window.show_view("documents")
+        self.window.show_view("evidence")
+
+        self.assertTrue(self.window.action_back.isEnabled())
+        self.assertFalse(self.window.action_forward.isEnabled())
+        self.window.action_back.trigger()
+        self.assertEqual(
+            self.window.workspace_store.snapshot.active_perspective,
+            PerspectiveId("documents"),
+        )
+        self.assertTrue(self.window.action_forward.isEnabled())
+        self.window.action_forward.trigger()
+        self.assertEqual(
+            self.window.workspace_store.snapshot.active_perspective,
+            PerspectiveId("evidence"),
+        )
+
+    def test_project_change_and_close_clear_navigation_history(self):
+        self.window.show_view("documents")
+        self.assertTrue(self.window.navigation_controller.history)
+
+        self.window.application_state_store.transition_to(
+            ApplicationState.PROJECT_OPEN,
+            project_id="project-1",
+        )
+        self.assertEqual(self.window.navigation_controller.history, ())
+        self.window.show_view("documents")
+        self.window.application_state_store.transition_to(
+            ApplicationState.NO_PROJECT
+        )
+
+        self.assertEqual(self.window.navigation_controller.history, ())
+        self.assertFalse(self.window.action_back.isEnabled())
+        self.assertFalse(self.window.action_forward.isEnabled())
+
+    def test_resource_inspector_updates_from_workspace_navigation(self):
+        cases = (
+            (NavigationIntent.open_document("doc-1"), "document", "doc-1"),
+            (NavigationIntent.open_evidence("ev-1"), "evidence", "ev-1"),
+            (
+                NavigationIntent.open_requirement("req-1"),
+                "requirement",
+                "req-1",
+            ),
+        )
+        for intent, resource_type, identifier in cases:
+            with self.subTest(resource_type=resource_type):
+                self.window.navigation_controller.navigate(intent)
+                data = self.window.resource_inspector.data
+                self.assertIs(data.state, ResourceInspectorState.READY)
+                self.assertEqual(data.resource_type, resource_type)
+                self.assertEqual(data.resource_id, identifier)
+
+    def test_resource_inspector_handles_missing_and_unavailable_projection(self):
+        self.assertIs(
+            self.window.resource_inspector.data.state,
+            ResourceInspectorState.EMPTY,
+        )
+
+        class UnavailableProjector:
+            def project(self, _identity, _workspace):
+                raise LookupError("projection unavailable")
+
+        self.window.resource_projectors[
+            ResourceType.DOCUMENT
+        ] = UnavailableProjector()
+        self.window.navigation_controller.navigate(
+            NavigationIntent.open_document("missing")
+        )
+
+        self.assertIs(
+            self.window.resource_inspector.data.state,
+            ResourceInspectorState.UNAVAILABLE,
         )
 
     def test_unknown_visual_target_preserves_navigation_state(self):

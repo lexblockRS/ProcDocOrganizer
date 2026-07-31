@@ -26,6 +26,7 @@ from presentation.functional_assignments import (
 from presentation.functional_exercises import FunctionalExercisesController
 from presentation import (
     ApplicationState,
+    NavigationIntent,
     Notification,
     NotificationLevel,
     OperationId,
@@ -36,12 +37,6 @@ from models import DocumentProcessingStatus
 from services.processing import DocumentProcessor
 
 from .project_session_factory import ProjectSessionFactory
-from .application_lifecycle_host import ApplicationLifecycleHost
-
-
-_APPLICATION_LIFECYCLE_HOST = ApplicationLifecycleHost()
-
-
 class ProjectController:
     """
     Coordena as operações relacionadas aos projetos.
@@ -58,6 +53,13 @@ class ProjectController:
         batch_limit: int = DEFAULT_BATCH_LIMIT,
         session_factory=None,
         application_registry=None,
+        lifecycle_host=None,
+        prepare_session_consumers=None,
+        commit_session_consumers=None,
+        rollback_session_consumers=None,
+        close_session_consumers=None,
+        active_project_id=None,
+        initial_perspective: str = "home",
     ):
         self.window = window
         self.manager = manager
@@ -66,8 +68,15 @@ class ProjectController:
         self.session_factory = session_factory or ProjectSessionFactory()
         self.application_registry = application_registry
         self.contribution_installer = contribution_installer
-
-        self.session = None
+        if lifecycle_host is None:
+            raise ValueError("lifecycle_host é obrigatório.")
+        self.lifecycle_host = lifecycle_host
+        self._prepare_session_consumers = prepare_session_consumers
+        self._commit_session_consumers = commit_session_consumers
+        self._rollback_session_consumers = rollback_session_consumers
+        self._close_session_consumers = close_session_consumers
+        self._active_project_id = active_project_id
+        self._initial_perspective = initial_perspective
         self.selected_document = None
         self.document_processor = DocumentProcessor()
         self.dashboard_controller = DashboardController(
@@ -142,6 +151,12 @@ class ProjectController:
         self.window.set_close_guard(self.evidence_controller.can_leave)
 
         self._connect_signals()
+
+    @property
+    def session(self):
+        """Projeção transitória da autoridade oficial."""
+
+        return self.lifecycle_host.current_session
 
     # ------------------------------------------------------------------
 
@@ -219,8 +234,11 @@ class ProjectController:
         Inicializa um projeto na aplicação.
         """
 
-        previous_session = self.session
+        previous_session = self.lifecycle_host.current_session
         session = self.session_factory.create(project)
+        prepared_consumers = None
+        contributions_changed = False
+        publish_started = False
         application = getattr(session, "application", None)
         contributions = (
             application.contributions()
@@ -228,24 +246,64 @@ class ProjectController:
             else ()
         )
 
-        if self.session is None:
-            self.contribution_installer.install(contributions)
-        else:
-            self.contribution_installer.replace(contributions)
+        try:
+            if self._prepare_session_consumers is not None:
+                prepared_consumers = self._prepare_session_consumers(session)
+            if previous_session is None:
+                self.contribution_installer.install(contributions)
+            else:
+                self.contribution_installer.replace(contributions)
+            contributions_changed = True
+        except Exception:
+            self.lifecycle_host.dispose_session(session)
+            self._abort_prepared_consumers(prepared_consumers)
+            raise
 
-        self.session = session
+        def publish(candidate, previous):
+            nonlocal publish_started
+            publish_started = True
+            self._bind_session(candidate)
+            if self._commit_session_consumers is not None:
+                self._commit_session_consumers(
+                    candidate, prepared_consumers, previous
+                )
+
+        def rollback(previous, candidate):
+            if self._rollback_session_consumers is not None:
+                self._rollback_session_consumers(
+                    previous, candidate, prepared_consumers
+                )
+            if previous is None:
+                self._unbind_session()
+            else:
+                self._bind_session(previous)
+            if contributions_changed:
+                self._restore_contributions(previous)
+
+        try:
+            self.lifecycle_host.activate_session(
+                session,
+                after_publish=publish,
+                rollback=rollback,
+            )
+        except Exception:
+            self._abort_prepared_consumers(prepared_consumers)
+            if contributions_changed and not publish_started:
+                self._restore_contributions(previous_session)
+            raise
+
+    def _bind_session(self, session):
         self.document_processor = getattr(
             session,
             "document_processor",
             getattr(self, "document_processor", None),
         )
-        self.state.open_project(project)
         self.selected_document = None
         self.search_controller.set_search_service(session.search_service)
         self.evidence_controller.set_service(session.evidence_service)
 
         self.window.set_project(
-            project,
+            session.project,
             session.document_repository.list_documents(),
         )
         self.documents_controller.set_service(session.document_service)
@@ -297,9 +355,41 @@ class ProjectController:
             activities_action.setEnabled(
                 getattr(session, "rsc_session", None) is not None
             )
-        _APPLICATION_LIFECYCLE_HOST.activate_session(session)
-        if previous_session is not None:
-            _APPLICATION_LIFECYCLE_HOST.dispose_session(previous_session)
+
+    def _unbind_session(self):
+        self.evidence_controller.set_service(None)
+        self.documents_controller.set_service(None)
+        self.search_controller.set_search_service(None)
+        self.selected_document = None
+        self.window.clear_project()
+        for controller_name in (
+            "dashboard_controller",
+            "activities_controller",
+            "functional_assignments_controller",
+            "functional_exercises_controller",
+        ):
+            controller = getattr(self, controller_name, None)
+            clear = getattr(controller, "clear_session", None)
+            if callable(clear):
+                clear()
+
+    def _restore_contributions(self, session):
+        if session is None:
+            self.contribution_installer.clear()
+            return
+        application = getattr(session, "application", None)
+        contributions = (
+            application.contributions()
+            if application is not None
+            else ()
+        )
+        self.contribution_installer.replace(contributions)
+
+    @staticmethod
+    def _abort_prepared_consumers(prepared):
+        close = getattr(prepared, "close", None)
+        if callable(close):
+            close()
 
     def _execute_lifecycle_operation(self, operation_id, work):
         executor = getattr(self.window, "operation_executor", None)
@@ -331,6 +421,11 @@ class ProjectController:
         return True
 
     def _complete_project_open(self, project, message) -> None:
+        project_id = (
+            self._active_project_id(self.lifecycle_host.current_session)
+            if self._active_project_id is not None
+            else project.project_name
+        )
         application_state = getattr(
             self.window, "application_state_store", None
         )
@@ -341,13 +436,23 @@ class ProjectController:
                 )
             application_state.transition_to(
                 ApplicationState.PROJECT_OPEN,
-                project_id=project.project_name,
+                project_id=project_id,
             )
         navigation = getattr(
             self.window, "navigation_controller", None
         )
         if navigation is not None:
-            navigation.navigate_to(PerspectiveId("home"))
+            initial_perspective = (
+                self._initial_perspective(self.lifecycle_host.current_session)
+                if callable(self._initial_perspective)
+                else self._initial_perspective
+            )
+            if initial_perspective == "workspace_dashboard":
+                navigation.navigate(
+                    NavigationIntent.open_dashboard(project_id=project_id)
+                )
+            else:
+                navigation.navigate_to(PerspectiveId(initial_perspective))
         self._publish_project_notification(
             NotificationLevel.SUCCESS,
             "Projeto",
@@ -370,6 +475,20 @@ class ProjectController:
             is not ApplicationState.NO_PROJECT
         ):
             application_state.transition_to(ApplicationState.NO_PROJECT)
+        navigation = getattr(self.window, "navigation_controller", None)
+        if navigation is not None:
+            perspective_store = getattr(
+                self.window, "perspective_store", None
+            )
+            available = (
+                () if perspective_store is None else perspective_store.list_all()
+            )
+            if any(
+                item.id == PerspectiveId("project_explorer")
+                for item in available
+            ):
+                navigation.navigate_to(PerspectiveId("project_explorer"))
+            navigation.clear_history()
         self._publish_project_notification(
             NotificationLevel.INFO,
             "Projeto",
@@ -1088,8 +1207,6 @@ class ProjectController:
     def close_project(self):
         if not self.state.has_project:
             self.contribution_installer.clear()
-            _APPLICATION_LIFECYCLE_HOST.dispose_session(self.session)
-            self.session = None
             return
         if not getattr(
             self.documents_controller,
@@ -1123,35 +1240,26 @@ class ProjectController:
         self._complete_project_close()
 
     def _close_active_project(self):
+        active = self.lifecycle_host.current_session
         self.contribution_installer.clear()
-        _APPLICATION_LIFECYCLE_HOST.dispose_session(self.session)
-        self.evidence_controller.set_service(None)
-        self.documents_controller.set_service(None)
-        self.search_controller.set_search_service(None)
-        self.session = None
-        self.selected_document = None
-        self.state.close_project()
-        self.window.clear_project()
-        dashboard_controller = getattr(
-            self, "dashboard_controller", None
-        )
-        if dashboard_controller is not None:
-            dashboard_controller.clear_session()
-        activities_controller = getattr(
-            self, "activities_controller", None
-        )
-        if activities_controller is not None:
-            activities_controller.clear_session()
-        functional_controller = getattr(
-            self, "functional_assignments_controller", None
-        )
-        if functional_controller is not None:
-            functional_controller.clear_session()
-        exercise_controller = getattr(
-            self, "functional_exercises_controller", None
-        )
-        if exercise_controller is not None:
-            exercise_controller.clear_session()
+        def publish(_previous):
+            self._unbind_session()
+            if self._close_session_consumers is not None:
+                self._close_session_consumers()
+
+        def rollback(previous):
+            self._bind_session(previous)
+            self._restore_contributions(previous)
+
+        try:
+            self.lifecycle_host.close_session(
+                after_publish=publish,
+                rollback=rollback,
+            )
+        except Exception:
+            if active is not None and self.lifecycle_host.current_session is active:
+                self._restore_contributions(active)
+            raise
         evidence_workspace = getattr(
             self.window, "evidence_workspace", None
         )

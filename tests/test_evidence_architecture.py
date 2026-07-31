@@ -165,7 +165,7 @@ class EvidencePersistenceArchitectureTests(unittest.TestCase):
             / "core"
             / "project_session_factory.py"
         ).read_text(encoding="utf-8")
-        self.assertIn("SQLiteEvidenceRepository(project)", source)
+        self.assertIn("SQLiteEvidenceRepository(project", source)
         self.assertIn("SearchDocumentSourceResolver(project)", source)
 
 

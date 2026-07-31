@@ -96,7 +96,7 @@ class AssetAuditHostIntegrationTests(unittest.TestCase):
             lifecycle.activate_session(rsc_host_session)
             self.assertEqual(
                 asset_runtime.lifecycle_state,
-                ApplicationLifecycleState.ACTIVE,
+                ApplicationLifecycleState.DISPOSED,
             )
             lifecycle.dispose_session(asset_host_session)
 

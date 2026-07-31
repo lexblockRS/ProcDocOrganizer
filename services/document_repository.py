@@ -14,9 +14,10 @@ from models import (
 class DocumentRepository:
     """Persiste o catálogo documental sem executar análise."""
 
-    def __init__(self, project: Project):
+    def __init__(self, project: Project, revision_store=None):
         self.project = project
         self.database_path = project.project_path / project.database
+        self._revision_store = revision_store
 
     def load(self) -> None:
         """Inicializa/migra o banco; mantido para compatibilidade."""
@@ -42,6 +43,7 @@ class DocumentRepository:
                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                         self._to_row(document),
                     )
+            self._increment_revision("document.created")
             return document
         except sqlite3.IntegrityError as exc:
             raise ValueError(
@@ -94,6 +96,7 @@ class DocumentRepository:
                     raise ValueError(
                         f"O documento '{document.name}' não existe no projeto."
                     )
+        self._increment_revision("document.updated")
 
     def delete(self, document_id: str) -> Document | None:
         document = self.find_by_id(document_id)
@@ -125,6 +128,7 @@ class DocumentRepository:
                     "DELETE FROM documents WHERE document_id = ?",
                     (document_id,),
                 )
+        self._increment_revision("document.deleted")
         return document
 
     def find_by_id(self, document_id: str) -> Document | None:
@@ -179,6 +183,10 @@ class DocumentRepository:
                 (value.strip(),),
             ).fetchone()
         return self._from_row(row) if row is not None else None
+
+    def _increment_revision(self, reason: str) -> None:
+        if self._revision_store is not None:
+            self._revision_store.increment(reason)
 
     @staticmethod
     def _to_row(document):

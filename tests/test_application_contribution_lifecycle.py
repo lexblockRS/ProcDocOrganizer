@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QDialog
 
 from contracts import ActionContribution
 from core.project_controller import ProjectController
+from core.application_lifecycle_host import ApplicationLifecycleHost
 from ui.contribution_installer import ContributionInstallationError
 
 
@@ -126,15 +127,22 @@ def controller_for(session, *, active_session=None, installer=None):
     controller = ProjectController.__new__(ProjectController)
     controller.window = WindowSpy()
     controller.manager = Mock()
-    controller.state = StateSpy(
-        active_session.project if active_session is not None else None
-    )
     controller.session_factory = SimpleNamespace(
         create=lambda _project: session
     )
     controller.application_registry = SimpleNamespace(descriptors=())
     controller.contribution_installer = installer or InstallerSpy()
-    controller.session = active_session
+    controller.lifecycle_host = ApplicationLifecycleHost()
+    if active_session is not None:
+        controller.lifecycle_host._current_session = active_session
+    from core.project_state import ProjectState
+    controller.state = ProjectState(controller.lifecycle_host)
+    controller._prepare_session_consumers = None
+    controller._commit_session_consumers = None
+    controller._rollback_session_consumers = None
+    controller._close_session_consumers = None
+    controller._active_project_id = lambda _session: "project"
+    controller._initial_perspective = "home"
     controller.selected_document = object()
     controller.search_controller = ServiceControllerSpy()
     controller.documents_controller = ServiceControllerSpy()

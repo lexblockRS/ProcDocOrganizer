@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from applications.rsc.services.project_explorer_service import (
     ProjectExplorerApplicationService,
 )
@@ -11,24 +9,43 @@ from database import (
     SQLiteEvidenceStore,
     SQLiteExecutionBindingStore,
     SQLiteExecutionFactStore,
-    SQLiteProjectStore,
 )
-from platform_infrastructure import WorkspaceFactory, WorkspaceLocator
+from core.operational_project_state import OperationalProjectStateStore
+from platform_sdk import Project
 
 
 def create_project_explorer_service(
-    *, database_path: str | Path, workspace_base: str | Path,
-    application_registry,
+    session,
 ) -> ProjectExplorerApplicationService:
-    return ProjectExplorerApplicationService(
-        SQLiteProjectStore(database_path),
-        SQLiteEvidenceStore(database_path),
-        SQLiteExecutionFactStore(database_path),
-        SQLiteExecutionBindingStore(database_path),
-        WorkspaceFactory(workspace_base),
-        WorkspaceLocator(workspace_base),
-        application_registry,
+    project = session.project
+    return create_project_explorer_service_for_project(
+        project, session.document_repository
     )
 
 
-__all__ = ["create_project_explorer_service"]
+def create_project_explorer_service_for_project(
+    project, document_repository
+) -> ProjectExplorerApplicationService:
+    database_path = project.project_path / project.database
+    operational_state = OperationalProjectStateStore(database_path)
+    projected_project = Project(
+        project_id=operational_state.project_id,
+        name=project.project_name,
+        application_id=project.application,
+        revision=operational_state.current(),
+    )
+    return ProjectExplorerApplicationService(
+        projected_project,
+        SQLiteEvidenceStore(database_path),
+        SQLiteExecutionFactStore(database_path),
+        SQLiteExecutionBindingStore(database_path),
+        document_repository,
+        operational_state,
+        project.project_path,
+    )
+
+
+__all__ = [
+    "create_project_explorer_service",
+    "create_project_explorer_service_for_project",
+]

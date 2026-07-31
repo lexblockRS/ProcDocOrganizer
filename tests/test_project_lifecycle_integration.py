@@ -14,6 +14,7 @@ from core.application_registry import ApplicationRegistry
 from core.project_controller import ProjectController
 from core.project_manager import ProjectManager
 from core.project_session_factory import ProjectSessionFactory
+from core.application_lifecycle_host import ApplicationLifecycleHost
 from core.project_state import ProjectState
 from presentation import (
     ApplicationState,
@@ -37,7 +38,8 @@ class ProjectLifecycleIntegrationTests(unittest.TestCase):
         self.temporary_directory = TemporaryDirectory()
         self.root = Path(self.temporary_directory.name)
         self.window = MainWindow()
-        self.state = ProjectState()
+        self.lifecycle_host = ApplicationLifecycleHost()
+        self.state = ProjectState(self.lifecycle_host)
         self.manager = ProjectManager()
         self.application_registry = ApplicationRegistry([RscApplication()])
         self.controller = ProjectController(
@@ -51,6 +53,7 @@ class ProjectLifecycleIntegrationTests(unittest.TestCase):
                 self.application_registry
             ),
             application_registry=self.application_registry,
+            lifecycle_host=self.lifecycle_host,
         )
         self.notifications = []
         self.window.notification_center.subscribe(

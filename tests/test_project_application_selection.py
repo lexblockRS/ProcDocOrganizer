@@ -91,6 +91,7 @@ class ProjectCreationApplicationFlowTests(unittest.TestCase):
         controller.evidence_controller = Mock()
         controller.evidence_controller.can_leave.return_value = True
         controller._load_project = Mock()
+        controller._complete_project_open = Mock()
         controller.manager.create_project.return_value = object()
 
         dialog = Mock()

@@ -19,6 +19,7 @@ from core.project_controller import ProjectController
 from core.project_manager import ProjectManager
 from core.project_session_factory import ProjectSessionFactory
 from core.project_state import ProjectState
+from core.application_lifecycle_host import ApplicationLifecycleHost
 from models import CreateEvidenceRequest
 from presentation.functional_exercises import FunctionalExercisesController
 from ui.contribution_installer import DesktopContributionInstaller
@@ -257,13 +258,15 @@ class FunctionalExercisePresentationTests(unittest.TestCase):
     def test_actions_are_exposed_only_for_rsc_projects(self):
         window = MainWindow()
         self.addCleanup(window.close)
+        lifecycle_host = ApplicationLifecycleHost()
         controller = ProjectController(
             window,
             ProjectManager(),
-            ProjectState(),
+            ProjectState(lifecycle_host),
             DesktopContributionInstaller(window),
             session_factory=self.factory,
             application_registry=ApplicationRegistry([RscApplication()]),
+            lifecycle_host=lifecycle_host,
         )
         common = ProjectManager().create_project(
             "Comum", Path(self.temporary_directory.name)

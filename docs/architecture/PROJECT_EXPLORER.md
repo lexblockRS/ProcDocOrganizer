@@ -1,101 +1,55 @@
 # Project Explorer
 
-## Objetivo
+## Papel atual
 
-`ProjectExplorerWindow` é a composition root visual do fluxo integrado de
-Project, Evidence, ExecutionFact, Binding e avaliação. Ela apresenta dados e
-coleta intenções sem introduzir regra de negócio ou conhecer SQLite.
+`ProjectExplorerWindow` é uma View passiva do Productive Workspace. Ela renderiza
+o projeto ativo, coleta edições operacionais e emite solicitações de lifecycle.
+Não cria, abre ou fecha Projects por conta própria e não escolhe banco de dados.
 
-## Estrutura visual
-
-```text
-Janela principal
-├── Barra de título
-├── Menu Arquivo
-│   ├── Novo Projeto
-│   ├── Abrir Projeto
-│   ├── Fechar Projeto
-│   └── Sair
-├── Menu Ajuda
-│   └── Sobre
-├── Toolbar
-│   ├── Novo
-│   ├── Abrir
-│   └── Fechar
-├── Painel do Project
-│   ├── Nome
-│   ├── Aggregate ID
-│   ├── Application
-│   ├── Estado
-│   ├── Revision
-│   ├── Workspace
-│   └── Data de criação, quando disponível
-└── Barra de status
-```
-
-O painel inclui Evidence, ExecutionFacts, enquadramento manual, execução,
-Results Explorer e Evaluation Report. OCR, IA e inferência normativa não fazem
-parte desse fluxo.
-
-## Novo Projeto
+O lifecycle oficial é:
 
 ```text
-NewProjectDialog
-  ↓ nome + Application registrada
-ProjectExplorerApplicationService.create_project()
-  ↓
-ProjectExplorerWindow atualiza o painel
+ProjectExplorerWindow (solicitação)
+    ↓
+ProjectController
+    ↓
+ProjectManager + ProjectSessionFactory
+    ↓
+ApplicationLifecycleHost
 ```
 
-O diálogo existente é reutilizado. A raiz de Workspaces configurada na janela
-é exibida como destino e permanece fixa para garantir que o Locator consiga
-reabrir o ambiente.
+## Composição por Project
 
-## Abrir Projeto
+Depois que a `ProjectSession` candidata foi criada, a aplicação RSC compõe um
+`ProjectExplorerApplicationService` ligado ao `database.db` do `.pdop`. Esse
+serviço recebe explicitamente os Stores, o `DocumentRepository`, o estado
+operacional e a raiz do Workspace. Ele não descobre a sessão, não acessa o
+Controller e não sobrevive à troca de Project.
+
+O facade coordena Explorer, Coverage, Insights, Dashboard, Review, Evaluation,
+Results e Report com as mesmas dependências project-scoped. O `Project` do SDK
+que ele expõe é apenas uma projeção operacional; não é autoridade de lifecycle.
+
+## Estado da View
+
+A View não mantém `_current_project`, `_current_workspace`, Evaluation ou Results
+como fontes de verdade. As propriedades exibidas derivam do serviço atualmente
+vinculado. Ao fechar ou trocar Project, o composition root desvincula o serviço,
+limpa Stores e histórico e descarta as dependências da sessão anterior.
+
+## Persistência
+
+O banco produtivo oficial é sempre:
 
 ```text
-ProjectExplorerApplicationService.list_projects()
-  ↓ seleção do usuário
-ProjectExplorerApplicationService.open_project()
-  ↓
-ProjectExplorerWindow atualiza o painel
+<project>.pdop/database.db
 ```
 
-O Project é reidratado com o mesmo `aggregate_id`, estado, revisão e
-`application_id`. Workspace é localizado pela identidade e não é recriado.
+`projects/productive-shell.sqlite` é somente um artefato legado detectado e
+preservado. Ele não é aberto, copiado, associado ou migrado automaticamente.
 
-## Fechar Projeto
+## Fronteiras
 
-Fechar remove somente as referências correntes da janela e limpa o painel.
-Não remove a linha SQLite e não altera ou exclui o Workspace.
-
-Fechar a aplicação encerra a conexão mantida pelo Store. Na próxima execução,
-uma nova janela pode abrir o mesmo banco e localizar o mesmo Workspace.
-
-## Responsabilidades
-
-A janela:
-
-- apresenta metadados do Project;
-- coleta intenção por dialogs e actions;
-- chama somente o `ProjectExplorerApplicationService` e ViewModels;
-- mantém apenas o Project atualmente exibido;
-- comunica resultado na barra de status.
-
-A janela não:
-
-- altera invariantes do Project;
-- executa Kernel, Validation ou Compatibility;
-- cria ou edita aggregates diretamente;
-- acessa tabelas SQLite diretamente;
-- cria diretórios fora do Workspace.
-
-## Integração com a plataforma
-
-Uma factory de composição constrói o Application Service com Registry, Stores,
-WorkspaceFactory e WorkspaceLocator. Essa factory é a única fronteira deste
-fluxo que conhece os adapters concretos; `ui/project_explorer.py` não importa
-`database`.
-
-Essa composição mantém UI, domínio e infraestrutura com responsabilidades
-distintas, embora reunidas concretamente nesta primeira janela funcional.
+A View não acessa SQLite, Stores ou entidades para navegar. O facade não executa
+regras normativas fora dos serviços oficiais e não altera Kernel, Pipeline,
+Validation ou Compatibility.

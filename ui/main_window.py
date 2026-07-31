@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QProgressDialog,
     QSplitter,
     QStatusBar,
+    QTabWidget,
     QToolBar,
     QWidget,
 )
@@ -28,6 +29,7 @@ from presentation import (
     ApplicationStateSnapshot,
     ApplicationStateStore,
     NavigationController,
+    NavigationIntentType,
     Notification,
     NotificationCenter,
     OperationExecutor,
@@ -36,9 +38,19 @@ from presentation import (
     PerspectiveSnapshot,
     PerspectiveStore,
     SelectionStore,
+    SelectionKind,
     WorkspaceSnapshot,
     WorkspaceStore,
     PresentationContextStore,
+    PresentationSnapshot,
+    ResourceIdentity,
+    ResourceType,
+    DocumentResourceProjector,
+    EvidenceResourceProjector,
+    RequirementResourceProjector,
+)
+from presentation.resource_inspector_view_model import (
+    ResourceInspectorViewModel,
 )
 from ui.builtin_perspectives import create_builtin_perspective_views
 from ui.main_window_contributions import (
@@ -50,6 +62,7 @@ from ui.main_window_contributions import (
 from ui.widgets import ProjectTreeWidget
 from ui.view_manager import ViewManager
 from ui.workspace_host import WorkspaceHost
+from ui.resource_inspector import ResourceInspectorView
 
 if TYPE_CHECKING:
     from models import Document, Project
@@ -91,21 +104,28 @@ class MainWindow(QMainWindow):
         self.application_state_store = ApplicationStateStore()
         self.selection_store = SelectionStore()
         self.perspective_store = PerspectiveStore()
+        self.workspace_store = WorkspaceStore(self.perspective_store)
         self.presentation_context_store = PresentationContextStore(
             self.application_state_store,
             self.selection_store,
             self.perspective_store,
+            self.workspace_store,
         )
-        self.workspace_store = WorkspaceStore(self.perspective_store)
         self.navigation_controller = NavigationController(
             self.perspective_store,
             self.workspace_store,
             self.selection_store,
+            presentation_context=self.presentation_context_store,
         )
         self.notification_center = NotificationCenter()
         self.operation_executor = OperationExecutor(
             self.application_state_store
         )
+        self.resource_projectors = {
+            ResourceType.DOCUMENT: DocumentResourceProjector(),
+            ResourceType.EVIDENCE: EvidenceResourceProjector(),
+            ResourceType.REQUIREMENT: RequirementResourceProjector(),
+        }
         self._presentation_unsubscribers = []
 
     # ------------------------------------------------------------------
@@ -118,6 +138,17 @@ class MainWindow(QMainWindow):
         self.action_exit = QAction("Sair", self)
 
         self.action_preferences = QAction("Preferências", self)
+
+        self.action_back = QAction("Voltar", self)
+        self.action_back.setObjectName("navigationBackAction")
+        self.action_back.setShortcut("Alt+Left")
+        self.action_back.setEnabled(False)
+        self.action_back.triggered.connect(self._go_back)
+        self.action_forward = QAction("Avançar", self)
+        self.action_forward.setObjectName("navigationForwardAction")
+        self.action_forward.setShortcut("Alt+Right")
+        self.action_forward.setEnabled(False)
+        self.action_forward.triggered.connect(self._go_forward)
 
         self.action_import_documents = QAction(
             "Importar Documentos...",
@@ -183,6 +214,9 @@ class MainWindow(QMainWindow):
         edit_menu = menu.addMenu("Editar")
         self._base_menus_by_id["edit"] = edit_menu
 
+        edit_menu.addAction(self.action_back)
+        edit_menu.addAction(self.action_forward)
+        edit_menu.addSeparator()
         edit_menu.addAction(self.action_preferences)
 
         # ---------------- Evidências ----------------
@@ -315,6 +349,11 @@ class MainWindow(QMainWindow):
         toolbar.addAction(self.action_new_project)
         toolbar.addAction(self.action_open_project)
         toolbar.addAction(self.action_close_project)
+
+        toolbar.addSeparator()
+
+        toolbar.addAction(self.action_back)
+        toolbar.addAction(self.action_forward)
 
         toolbar.addSeparator()
 
@@ -490,9 +529,18 @@ class MainWindow(QMainWindow):
 
         )
 
-        dock.setWidget(
-            self.properties_label
+        self.resource_inspector = ResourceInspectorView(
+            ResourceInspectorViewModel.empty().data,
+            self,
         )
+        self.resource_inspector.navigation_requested.connect(
+            self.navigation_controller.navigate
+        )
+        inspector_tabs = QTabWidget(dock)
+        inspector_tabs.addTab(self.resource_inspector, "Resource")
+        inspector_tabs.addTab(self.properties_label, "Documento")
+        dock.setWidget(inspector_tabs)
+        self.resource_inspector_dock = dock
 
         self.addDockWidget(
             Qt.RightDockWidgetArea,
@@ -562,6 +610,9 @@ class MainWindow(QMainWindow):
                 self.notification_center.subscribe(
                     self._on_notification
                 ),
+                self.presentation_context_store.subscribe(
+                    self._on_resource_context_changed
+                ),
             )
         )
         self._install_perspective_navigation()
@@ -569,6 +620,108 @@ class MainWindow(QMainWindow):
             self.application_state_store.snapshot
         )
         self.navigation_controller.navigate_to(PerspectiveId("home"))
+        self._on_resource_context_changed(
+            self.presentation_context_store.snapshot
+        )
+
+    def install_productive_workspace(self, workspace: QWidget) -> None:
+        """Registra o Workspace produtivo na infraestrutura oficial."""
+        perspective_widget = getattr(workspace, "perspective_widget", None)
+        if not callable(perspective_widget):
+            raise TypeError(
+                "workspace deve fornecer perspective_widget(id)."
+            )
+        if self.workspace_host.indexOf(workspace) < 0:
+            self.workspace_host.addWidget(workspace)
+        definitions = (
+            ("workspace_dashboard", "Workspace Dashboard"),
+            ("review_workspace", "Review Workspace"),
+            ("project_explorer", "Project Explorer"),
+            ("results", "Results Explorer"),
+            ("evaluation_report", "Evaluation Report"),
+        )
+        first_order = len(self.perspective_store.list_all()) + 1
+        for offset, (identifier, title) in enumerate(definitions):
+            perspective_id = PerspectiveId(identifier)
+            self.perspective_store.register(PerspectiveDefinition(
+                id=perspective_id,
+                title=title,
+                order=first_order + offset,
+                icon=None,
+                requires_project=identifier != "project_explorer",
+                factory=lambda value=identifier: perspective_widget(value),
+            ))
+        route_ids = {
+            NavigationIntentType.OPEN_DASHBOARD: "workspace_dashboard",
+            NavigationIntentType.OPEN_DOCUMENT: "project_explorer",
+            NavigationIntentType.OPEN_EVIDENCE: "project_explorer",
+            NavigationIntentType.OPEN_EXECUTION_FACT: "project_explorer",
+            NavigationIntentType.OPEN_REQUIREMENT: "project_explorer",
+            NavigationIntentType.OPEN_CRITERION: "project_explorer",
+            NavigationIntentType.OPEN_EVALUATION: "results",
+            NavigationIntentType.OPEN_REPORT: "evaluation_report",
+        }
+        for intent_type, identifier in route_ids.items():
+            self.navigation_controller.register_route(
+                intent_type, PerspectiveId(identifier)
+            )
+        self.productive_workspace = workspace
+
+    def _go_back(self) -> None:
+        self.navigation_controller.go_back()
+        self._update_history_actions()
+
+    def _go_forward(self) -> None:
+        self.navigation_controller.go_forward()
+        self._update_history_actions()
+
+    def _update_history_actions(self) -> None:
+        self.action_back.setEnabled(
+            self.navigation_controller.can_go_back
+        )
+        self.action_forward.setEnabled(
+            self.navigation_controller.can_go_forward
+        )
+
+    def _on_resource_context_changed(
+        self, snapshot: PresentationSnapshot
+    ) -> None:
+        identity = self._resource_identity(snapshot)
+        if identity is None:
+            data = ResourceInspectorViewModel.empty().data
+        else:
+            projector = self.resource_projectors.get(identity.resource_type)
+            if projector is None:
+                data = ResourceInspectorViewModel.unavailable(identity).data
+            else:
+                try:
+                    resource = projector.project(identity, snapshot.workspace)
+                except Exception:
+                    data = ResourceInspectorViewModel.unavailable(identity).data
+                else:
+                    data = ResourceInspectorViewModel.from_resource(
+                        resource
+                    ).data
+        self.resource_inspector.set_data(data)
+        self._update_history_actions()
+
+    @staticmethod
+    def _resource_identity(
+        snapshot: PresentationSnapshot,
+    ) -> ResourceIdentity | None:
+        selection = snapshot.workspace.selection.identity
+        if selection.identifier is None:
+            return None
+        type_by_kind = {
+            SelectionKind.DOCUMENT: ResourceType.DOCUMENT,
+            SelectionKind.EVIDENCE: ResourceType.EVIDENCE,
+            SelectionKind.EXECUTION_FACT: ResourceType.EXECUTION_FACT,
+            SelectionKind.REQUIREMENT: ResourceType.REQUIREMENT,
+        }
+        resource_type = type_by_kind.get(selection.kind)
+        if resource_type is None:
+            return None
+        return ResourceIdentity(resource_type, selection.identifier)
 
     def _install_perspective_navigation(self) -> None:
         self._perspective_action_group = QActionGroup(self)
@@ -631,6 +784,11 @@ class MainWindow(QMainWindow):
     def _on_application_state_changed(
         self, snapshot: ApplicationStateSnapshot
     ) -> None:
+        previous_project_id = getattr(self, "_history_project_id", None)
+        if snapshot.project_id != previous_project_id:
+            self.navigation_controller.clear_history()
+            self._history_project_id = snapshot.project_id
+            self._update_history_actions()
         has_project = snapshot.has_project
         is_available = snapshot.state not in (
             ApplicationState.BUSY,
@@ -725,10 +883,16 @@ class MainWindow(QMainWindow):
         Exibe uma view registrada.
         """
 
-        if name not in self.views:
+        if not isinstance(name, str) or not name.strip():
             return False
-        self.navigation_controller.navigate_to(PerspectiveId(name))
-        return self.workspace_host.active_widget is self.views[name]
+        perspective_id = PerspectiveId(name)
+        if not self.perspective_store.contains(perspective_id):
+            return False
+        self.navigation_controller.navigate_to(perspective_id)
+        return (
+            self.perspective_store.snapshot.active
+            == perspective_id
+        )
 
     # ------------------------------------------------------------------
 
@@ -762,7 +926,6 @@ class MainWindow(QMainWindow):
         self.clear_document_properties()
         self.search_workspace.clear()
         self.pdf_view.clear_document()
-        self.show_view("home")
 
         if had_project:
             self.view_manager.notify_project_changed(project)
@@ -792,7 +955,6 @@ class MainWindow(QMainWindow):
         self.clear_document_properties()
         self.search_workspace.clear()
         self.pdf_view.clear_document()
-        self.show_view("home")
 
         self.view_manager.notify_project_closed(
             exclude=(self.evidence_workspace,)
@@ -830,6 +992,11 @@ class MainWindow(QMainWindow):
             event.ignore()
 
     def _dispose_presentation_integration(self) -> None:
+        productive_workspace = getattr(
+            self, "productive_workspace", None
+        )
+        if productive_workspace is not None:
+            productive_workspace.close()
         while self._presentation_unsubscribers:
             self._presentation_unsubscribers.pop()()
 
