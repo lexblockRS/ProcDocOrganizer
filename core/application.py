@@ -15,6 +15,11 @@ from core.project_manager import ProjectManager
 from core.project_session_factory import ProjectSessionFactory
 from core.project_state import ProjectState
 from core.application_lifecycle_host import ApplicationLifecycleHost
+from core.version import (
+    APPLICATION_DISPLAY_NAME,
+    APPLICATION_NAME,
+    TECHNICAL_VERSION,
+)
 from ui.contribution_installer import DesktopContributionInstaller
 from platform_sdk import ApplicationCatalog
 from ui.platform_main_window import PlatformMainWindow
@@ -35,9 +40,10 @@ class Application:
 
         self.app = QApplication.instance() or QApplication(sys.argv)
 
-        self.app.setApplicationName("ProcDocOrganizer")
+        self.app.setApplicationName(APPLICATION_NAME)
+        self.app.setApplicationDisplayName(APPLICATION_DISPLAY_NAME)
         self.app.setOrganizationName("ProcDocOrganizer")
-        self.app.setApplicationVersion("1.0")
+        self.app.setApplicationVersion(TECHNICAL_VERSION)
 
         self._create_components(
             productive_database_path=productive_database_path,

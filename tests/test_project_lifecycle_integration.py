@@ -91,7 +91,7 @@ class ProjectLifecycleIntegrationTests(unittest.TestCase):
         )
         self.assertEqual(
             self.window.windowTitle(),
-            "ProcDocOrganizer — Projeto",
+            "ProcDocOrganizer Beta 1.1 — Projeto",
         )
         self.assertTrue(self.window.action_close_project.isEnabled())
         self.assertEqual(
@@ -124,7 +124,9 @@ class ProjectLifecycleIntegrationTests(unittest.TestCase):
             self.window.application_state_store.snapshot.state,
             ApplicationState.NO_PROJECT,
         )
-        self.assertEqual(self.window.windowTitle(), "ProcDocOrganizer")
+        self.assertEqual(
+            self.window.windowTitle(), "ProcDocOrganizer Beta 1.1"
+        )
         self.assertFalse(self.window.action_close_project.isEnabled())
         self.assertIs(
             self.window.workspace_store.snapshot.state,
@@ -150,7 +152,7 @@ class ProjectLifecycleIntegrationTests(unittest.TestCase):
         self.assertTrue(self.state.has_project)
         self.assertEqual(
             self.window.windowTitle(),
-            "ProcDocOrganizer — Existente",
+            "ProcDocOrganizer Beta 1.1 — Existente",
         )
         self.assertIs(
             self.window.application_state_store.snapshot.state,

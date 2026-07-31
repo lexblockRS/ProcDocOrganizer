@@ -38,6 +38,7 @@ from ui.results_view import ResultsView
 from ui.workspace_dashboard import WorkspaceDashboardView
 from ui.review_workspace import ReviewWorkspaceView
 from presentation import NavigationIntent, NavigationIntentType, SelectionKind, WorkspaceSnapshot
+from core.version import APPLICATION_DISPLAY_NAME, PUBLIC_VERSION, TECHNICAL_VERSION
 
 
 class ProjectExplorerWindow(QMainWindow):
@@ -69,7 +70,9 @@ class ProjectExplorerWindow(QMainWindow):
         self._evaluation_report_view: EvaluationReportView | None = None
         self._disposed = False
 
-        self.setWindowTitle("ProcDocOrganizer — Project Explorer")
+        self.setWindowTitle(
+            f"{APPLICATION_DISPLAY_NAME} — Project Explorer"
+        )
         self.resize(760, 480)
         self._create_actions()
         self._create_menu()
@@ -649,7 +652,8 @@ class ProjectExplorerWindow(QMainWindow):
         QMessageBox.about(
             self,
             "Sobre",
-            "ProcDocOrganizer Project Explorer\nProduct 1.0",
+            f"ProcDocOrganizer Project Explorer\n"
+            f"{PUBLIC_VERSION} ({TECHNICAL_VERSION})",
         )
 
     def _render_project(self) -> None:

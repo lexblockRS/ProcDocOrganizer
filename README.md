@@ -1,30 +1,57 @@
 # ProcDocOrganizer
 
-Plataforma desktop extensível para organização documental e construção de
-conhecimento a partir de evidências.
+**Release:** Beta 1.1
+**Versão técnica:** `1.1.0-beta.1`
 
-## Plataforma
+Plataforma desktop para organizar, rastrear e avaliar processos de
+Reconhecimento de Saberes e Competências (RSC), preservando a decisão humana e
+a explicação de cada resultado.
 
-O Platform Host 1.0 oferece lifecycle, sessões, descoberta automática de
-Applications e materialização de contribuições declarativas. O pacote público
-`platform_sdk` permite que uma Application registre menus, ações, views,
-toolbars e dashboard sem importar Qt nem modificar o Host.
+## Capacidades principais
 
-As Applications atualmente disponíveis são:
+- organização de Documents, Evidences, ExecutionFacts e Bindings;
+- avaliação progressiva com pendências operacionais;
+- Workspace Dashboard e Review Workspace;
+- Resource Inspector;
+- Coverage e Insights derivados;
+- Results Explorer e Evaluation Report;
+- navegação por Intents com voltar, avançar, filtros e restauração;
+- isolamento e revisão operacional por Project.
 
-- **RSC**, preservada e compatível com a evolução da plataforma;
-- **Asset Audit**, aplicação de referência que valida isolamento, discovery,
-  lifecycle e Presentation SDK.
+## Execução
 
-O motor documental compartilhado mantém importação, processamento de PDF, OCR
-seletivo, persistência, indexação e pesquisa. Cada Application mantém seu
-próprio domínio e consome apenas os contratos públicos da plataforma.
+Requer Python e as dependências de `requirements.txt`.
 
-## Estado da release
+```powershell
+python -m pip install -r requirements.txt
+python app.py
+```
 
-A Release 1.2 encerra a fase de construção da plataforma. A arquitetura
-estabilizada está documentada em
-`docs/ARCHITECTURE_BASELINE_1_1.md`, e a declaração histórica do Platform Host
-1.0 está em `docs/HOST_1_0_RELEASE.md`.
+`app.py` inicia a única `MainWindow` produtiva. Ao abrir um Project, Dashboard,
+Review, Project Explorer, Results e Evaluation Report são apresentados como
+perspectivas do mesmo Workspace.
 
-O próximo ciclo de desenvolvimento funcional será dedicado ao domínio RSC.
+## Projects `.pdop`
+
+Cada Project é um diretório `<nome>.pdop` contendo `project.json`,
+`database.db`, Documents e diretórios operacionais. Os serviços produtivos usam
+exclusivamente o `database.db` do Project ativo. `productive-shell.sqlite` é
+apenas um artefato legado preservado e não é importado automaticamente.
+
+## Limitações conhecidas
+
+- ExecutionFact aparece como `UNAVAILABLE` no Inspector enquanto não houver
+  projector próprio.
+- Evaluation, Results e Report precisam ser regenerados após reabertura.
+- Não existe importador automático para `productive-shell.sqlite`.
+
+## Desenvolvimento
+
+```powershell
+python -m pytest -q
+python -m compileall -q .
+```
+
+A arquitetura detalhada está em `docs/architecture/ARCHITECTURE_OVERVIEW.md`.
+O histórico desta release está em `CHANGELOG.md` e
+`docs/releases/BETA_1_1.md`.

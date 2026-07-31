@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 
 from contracts import ContributionCategory
 from core.contribution_manager import ContributionManager
+from core.version import APPLICATION_DISPLAY_NAME, PUBLIC_VERSION
 from presentation import (
     ApplicationState,
     ApplicationStateSnapshot,
@@ -84,7 +85,7 @@ class MainWindow(QMainWindow):
             if contribution_manager is not None
             else create_compatibility_contribution_manager()
         )
-        self.setWindowTitle("ProcDocOrganizer")
+        self.setWindowTitle(APPLICATION_DISPLAY_NAME)
         self.resize(1400, 900)
 
         self._base_menus_by_id: dict[str, QMenu] = {}
@@ -557,7 +558,7 @@ class MainWindow(QMainWindow):
             "Nenhum projeto aberto"
         )
 
-        self.version_label = QLabel("v1.0")
+        self.version_label = QLabel(PUBLIC_VERSION)
 
         status.addWidget(
             self.status_message
@@ -796,9 +797,9 @@ class MainWindow(QMainWindow):
         )
         self.setWindowTitle(
             (
-                f"ProcDocOrganizer — {snapshot.project_id}"
+                f"{APPLICATION_DISPLAY_NAME} — {snapshot.project_id}"
                 if has_project and snapshot.project_id is not None
-                else "ProcDocOrganizer"
+                else APPLICATION_DISPLAY_NAME
             )
         )
         self.action_new_project.setEnabled(is_available)

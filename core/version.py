@@ -1,0 +1,13 @@
+"""Fonte oficial da versão do produto."""
+
+PUBLIC_VERSION = "Beta 1.1"
+TECHNICAL_VERSION = "1.1.0-beta.1"
+APPLICATION_NAME = "ProcDocOrganizer"
+APPLICATION_DISPLAY_NAME = f"{APPLICATION_NAME} {PUBLIC_VERSION}"
+
+__all__ = [
+    "APPLICATION_DISPLAY_NAME",
+    "APPLICATION_NAME",
+    "PUBLIC_VERSION",
+    "TECHNICAL_VERSION",
+]
