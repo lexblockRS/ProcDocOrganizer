@@ -33,6 +33,28 @@ from .presentation import (
     DashboardCard,
     DashboardPanel,
 )
+from .project import (
+    Project,
+    ProjectError,
+    ProjectResource,
+    ProjectState,
+)
+from .evidence import (
+    Document,
+    Evidence,
+    EvidenceError,
+    EvidenceState,
+)
+from .execution_fact import (
+    ExecutionFact,
+    ExecutionFactError,
+    ExecutionFactState,
+)
+from .execution_binding import (
+    BindingOrigin,
+    ExecutionBinding,
+    ExecutionBindingError,
+)
 
 __all__ = [
     "ActionContribution",
@@ -53,10 +75,24 @@ __all__ = [
     "DashboardCard",
     "DashboardPanel",
     "DashboardRefreshPolicy",
+    "Document",
+    "BindingOrigin",
+    "Evidence",
+    "EvidenceError",
+    "EvidenceState",
+    "ExecutionFact",
+    "ExecutionFactError",
+    "ExecutionFactState",
+    "ExecutionBinding",
+    "ExecutionBindingError",
     "MenuContribution",
     "PlatformSession",
+    "Project",
     "ProjectContext",
+    "ProjectError",
+    "ProjectResource",
     "ProjectSessionFactory",
+    "ProjectState",
     "SessionContext",
     "ToolbarContribution",
     "VALID_APPLICATION_LIFECYCLE_TRANSITIONS",

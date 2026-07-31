@@ -56,6 +56,21 @@ class ProjectDatabaseTests(unittest.TestCase):
                 self.assertEqual(
                     state["schema_version"], str(SUPPORTED_SCHEMA_VERSION)
                 )
+                platform_tables = {
+                    row["name"]
+                    for row in connection.execute(
+                        "SELECT name FROM sqlite_master "
+                        "WHERE type = 'table' AND name LIKE 'platform_%'"
+                    )
+                }
+                self.assertEqual(platform_tables, {
+                    "platform_projects",
+                    "platform_evidences",
+                    "platform_documents",
+                    "platform_evidence_documents",
+                    "platform_execution_facts",
+                    "platform_execution_bindings",
+                })
                 self.assertEqual(state["index_version"], str(INDEX_VERSION))
                 connection.execute(
                     "INSERT INTO document_pages_fts"
@@ -80,6 +95,47 @@ class ProjectDatabaseTests(unittest.TestCase):
 
             with self.assertRaises(SchemaVersionError):
                 initialize_database(database_path)
+
+    def test_v8_migrates_v7_database_through_official_manager(self):
+        with TemporaryDirectory() as temporary_directory:
+            database_path = Path(temporary_directory) / "database.db"
+            initialize_database(database_path)
+            connection = sqlite3.connect(database_path)
+            try:
+                for table in (
+                    "platform_execution_bindings",
+                    "platform_execution_facts",
+                    "platform_evidence_documents",
+                    "platform_documents",
+                    "platform_evidences",
+                    "platform_projects",
+                ):
+                    connection.execute(f"DROP TABLE {table}")
+                connection.execute("PRAGMA user_version = 7")
+                connection.execute(
+                    "UPDATE index_state SET value = '7' "
+                    "WHERE key = 'schema_version'"
+                )
+                connection.commit()
+            finally:
+                connection.close()
+
+            initialize_database(database_path)
+
+            with ProjectDatabase(database_path) as database:
+                names = {
+                    row[0]
+                    for row in database.connection.execute(
+                        "SELECT name FROM sqlite_master "
+                        "WHERE type = 'table' AND name LIKE 'platform_%'"
+                    )
+                }
+                self.assertIn("platform_projects", names)
+                self.assertIn("platform_execution_bindings", names)
+                self.assertEqual(
+                    get_schema_version(database.connection),
+                    SUPPORTED_SCHEMA_VERSION,
+                )
 
     def test_migration_failure_rolls_back_schema_integrally(self):
         with TemporaryDirectory() as temporary_directory:

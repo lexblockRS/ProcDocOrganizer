@@ -29,6 +29,9 @@ Esta decisão usa o próximo número disponível sem substituir aquele documento
 - A UI não acessa SQLite nem repositories diretamente.
 - DTOs de aplicação atravessam fronteiras de casos de uso; projections são
   modelos específicos da apresentação e não substituem esses DTOs.
+- Componentes visuais nunca consomem Aggregates do domínio diretamente.
+  Toda comunicação entre domínio e UI ocorre por ViewModels e DTOs
+  específicos de apresentação.
 - A parte RSC é opcional e alcançada somente pelo serviço de Dashboard através
   dos serviços públicos já compostos na `RscProjectSession`.
 

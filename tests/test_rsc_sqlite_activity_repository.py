@@ -34,7 +34,12 @@ from applications.rsc.repositories import (
     SQLiteFunctionalAssignmentEvidenceRepository,
     SQLiteFunctionalExerciseRepository,
 )
-from database import ProjectDatabase, get_schema_version, initialize_database
+from database import (
+    ProjectDatabase,
+    SUPPORTED_SCHEMA_VERSION,
+    get_schema_version,
+    initialize_database,
+)
 
 
 def uuid_for(index):
@@ -302,7 +307,10 @@ class SQLiteActivityRepositoryTests(unittest.TestCase):
         initialize_database(self.database_path)
 
         with ProjectDatabase(self.database_path) as database:
-            self.assertEqual(get_schema_version(database.connection), 7)
+            self.assertEqual(
+                get_schema_version(database.connection),
+                SUPPORTED_SCHEMA_VERSION,
+            )
             tables = {
                 row[0]
                 for row in database.connection.execute(

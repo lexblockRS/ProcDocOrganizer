@@ -35,6 +35,9 @@ class RscApplication:
             "Organização de documentos e evidências para Reconhecimento "
             "de Saberes e Competências."
         ),
+        author="ProcDocOrganizer",
+        services=("application_facade",),
+        provided_capabilities=frozenset({"rsc"}),
     )
 
     def __init__(

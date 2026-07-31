@@ -1,6 +1,6 @@
 """Definição do schema SQLite do ProcDoc Organizer."""
 
-SUPPORTED_SCHEMA_VERSION = 7
+SUPPORTED_SCHEMA_VERSION = 8
 INDEX_VERSION = 2
 
 MIGRATION_V1_STATEMENTS = (
@@ -204,4 +204,79 @@ MIGRATION_V7_STATEMENTS = (
     "CREATE UNIQUE INDEX idx_documents_document_id "
     "ON documents(document_id) WHERE document_id IS NOT NULL",
     "UPDATE index_state SET value = '7' WHERE key = 'schema_version'",
+)
+
+MIGRATION_V8_STATEMENTS = (
+    """CREATE TABLE IF NOT EXISTS platform_projects (
+        project_id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        application_id TEXT NOT NULL,
+        metadata_json TEXT NOT NULL,
+        state TEXT NOT NULL,
+        resources_json TEXT NOT NULL,
+        revision INTEGER NOT NULL CHECK (revision >= 0)
+    )""",
+    """CREATE TABLE IF NOT EXISTS platform_evidences (
+        evidence_id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        state TEXT NOT NULL,
+        metadata_json TEXT NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_platform_evidences_project "
+    "ON platform_evidences(project_id)",
+    """CREATE TABLE IF NOT EXISTS platform_documents (
+        document_id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        relative_path TEXT NOT NULL,
+        document_type TEXT NOT NULL,
+        sha256 TEXT,
+        size INTEGER
+    )""",
+    """CREATE TABLE IF NOT EXISTS platform_evidence_documents (
+        evidence_id TEXT NOT NULL,
+        document_id TEXT NOT NULL,
+        ordinal INTEGER NOT NULL,
+        PRIMARY KEY (evidence_id, document_id),
+        UNIQUE (evidence_id, ordinal),
+        FOREIGN KEY (evidence_id) REFERENCES platform_evidences(evidence_id)
+            ON DELETE CASCADE,
+        FOREIGN KEY (document_id) REFERENCES platform_documents(document_id)
+    )""",
+    """CREATE TABLE IF NOT EXISTS platform_execution_facts (
+        execution_fact_id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        evidence_id TEXT NOT NULL,
+        fact_type TEXT NOT NULL,
+        description TEXT NOT NULL,
+        quantity TEXT,
+        unit TEXT NOT NULL,
+        period_start TEXT,
+        period_end TEXT,
+        metadata_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        state TEXT NOT NULL,
+        FOREIGN KEY (evidence_id) REFERENCES platform_evidences(evidence_id)
+            ON DELETE CASCADE
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_platform_execution_facts_evidence "
+    "ON platform_execution_facts(evidence_id)",
+    """CREATE TABLE IF NOT EXISTS platform_execution_bindings (
+        binding_id TEXT PRIMARY KEY,
+        execution_fact_id TEXT NOT NULL UNIQUE,
+        criterion_id TEXT NOT NULL,
+        requirement_id TEXT NOT NULL,
+        execution_rule_id TEXT NOT NULL,
+        origin TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        metadata_json TEXT NOT NULL,
+        FOREIGN KEY (execution_fact_id)
+            REFERENCES platform_execution_facts(execution_fact_id)
+            ON DELETE CASCADE
+    )""",
+    "UPDATE index_state SET value = '8' WHERE key = 'schema_version'",
 )

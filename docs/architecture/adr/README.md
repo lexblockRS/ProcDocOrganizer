@@ -31,6 +31,7 @@ os ADRs devem ser interpretados conforme os princípios gerais da
 | ADR-030 | Versionamento normativo futuro | Exige resultados normativos identificáveis e reproduzíveis. | Aceito | [ADR-030](ADR-030-normative-versioning.md) |
 | ADR-031 | Associações e política de exclusão | Define propriedade, cascade, restrição e exclusões explícitas. | Aceito | [ADR-031](ADR-031-associations-and-deletion-policy.md) |
 | ADR-032 | Estado inicial de Activity | Formaliza que Activity nasce lembrada, não comprovada. | Aceito | [ADR-032](ADR-032-activity-initial-state.md) |
+| ADR-033 | Avaliação Progressiva | Preserva avaliações parciais e fatos ainda sem Binding. | Aceito | [ADR-033](ADR-033-progressive-evaluation.md) |
 
 ## Lacunas de numeração
 

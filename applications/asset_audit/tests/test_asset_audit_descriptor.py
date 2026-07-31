@@ -22,7 +22,7 @@ class AssetAuditDescriptorTests(unittest.TestCase):
         self.assertIn("Platform SDK", descriptor.description)
 
     def test_descriptor_does_not_require_icon(self):
-        self.assertFalse(hasattr(ASSET_AUDIT_DESCRIPTOR, "icon"))
+        self.assertIsNone(ASSET_AUDIT_DESCRIPTOR.icon)
 
 
 if __name__ == "__main__":

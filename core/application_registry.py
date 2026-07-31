@@ -183,6 +183,11 @@ class ApplicationRegistry:
         entry = self._get_entry(application_id)
         return entry.descriptor if entry is not None else None
 
+    def list(self) -> tuple[ApplicationDescriptor, ...]:
+        """Lista Applications instaladas como descriptors imutáveis."""
+
+        return self.descriptors
+
     def resolve(
         self,
         project: Project,
@@ -262,6 +267,11 @@ class ApplicationRegistry:
                 frozenset(),
             ),
             description=getattr(application, "description", ""),
+            icon=getattr(application, "icon", None),
+            author=getattr(application, "author", ""),
+            services=tuple(getattr(application, "services", ())),
+            views=tuple(getattr(application, "views", ())),
+            commands=tuple(getattr(application, "commands", ())),
         )
         self._validate_descriptor(descriptor)
         self._add_entry(

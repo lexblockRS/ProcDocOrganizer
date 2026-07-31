@@ -20,7 +20,12 @@ from applications.rsc.repositories import (
 from core.application_registry import ApplicationRegistry
 from core.project_manager import ProjectManager
 from core.project_session_factory import ProjectSessionFactory
-from database import DatabaseError, ProjectDatabase, get_schema_version
+from database import (
+    DatabaseError,
+    ProjectDatabase,
+    SUPPORTED_SCHEMA_VERSION,
+    get_schema_version,
+)
 from models import CreateEvidenceRequest
 from services.indexing import DocumentIndexer
 
@@ -185,7 +190,10 @@ class RscProjectSQLiteLifecycleTests(unittest.TestCase):
             with ProjectDatabase(
                 reopened_project.project_path / reopened_project.database
             ) as database:
-                self.assertEqual(get_schema_version(database.connection), 7)
+                self.assertEqual(
+                    get_schema_version(database.connection),
+                    SUPPORTED_SCHEMA_VERSION,
+                )
 
     def test_existing_version_three_project_migrates_and_persists_rsc(self):
         with TemporaryDirectory() as temporary_directory:

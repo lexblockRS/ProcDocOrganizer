@@ -55,6 +55,11 @@ class ApplicationDescriptor:
     required_capabilities: frozenset[str] = frozenset()
     provided_capabilities: frozenset[str] = frozenset()
     description: str = ""
+    icon: str | None = None
+    author: str = ""
+    services: tuple[str, ...] = ()
+    views: tuple[str, ...] = ()
+    commands: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not isinstance(self.application_id, str):
@@ -75,6 +80,10 @@ class ApplicationDescriptor:
             )
         if not isinstance(self.description, str):
             raise TypeError("description deve ser uma string.")
+        if self.icon is not None and not isinstance(self.icon, str):
+            raise TypeError("icon deve ser uma string ou None.")
+        if not isinstance(self.author, str):
+            raise TypeError("author deve ser uma string.")
 
         schemas = tuple(self.supported_project_schema_versions)
         if any(
@@ -105,6 +114,18 @@ class ApplicationDescriptor:
         object.__setattr__(self, "description", self.description.strip())
         object.__setattr__(
             self,
+            "icon",
+            self.icon.strip() if self.icon and self.icon.strip() else None,
+        )
+        object.__setattr__(self, "author", self.author.strip())
+        for field_name in ("services", "views", "commands"):
+            object.__setattr__(
+                self,
+                field_name,
+                self._identifiers(getattr(self, field_name), field_name),
+            )
+        object.__setattr__(
+            self,
             "supported_project_schema_versions",
             tuple(sorted(schemas)),
         )
@@ -129,6 +150,22 @@ class ApplicationDescriptor:
             )
         return capabilities
 
+    @staticmethod
+    def _identifiers(values, field_name: str) -> tuple[str, ...]:
+        if not isinstance(values, tuple):
+            raise TypeError(f"{field_name} deve ser uma tupla.")
+        if any(
+            not isinstance(item, str)
+            or not _CAPABILITY_ID_PATTERN.fullmatch(item)
+            for item in values
+        ):
+            raise ValueError(
+                f"{field_name} deve conter identificadores válidos."
+            )
+        if len(values) != len(set(values)):
+            raise ValueError(f"{field_name} não aceita duplicatas.")
+        return values
+
 
 def create_transitional_application_descriptor(
     *,
@@ -140,6 +177,11 @@ def create_transitional_application_descriptor(
     required_capabilities=frozenset(),
     provided_capabilities=frozenset(),
     description: str = "",
+    icon: str | None = None,
+    author: str = "",
+    services: tuple[str, ...] = (),
+    views: tuple[str, ...] = (),
+    commands: tuple[str, ...] = (),
 ) -> ApplicationDescriptor:
     """Cria o descriptor neutro de uma Application ainda legada."""
 
@@ -156,6 +198,11 @@ def create_transitional_application_descriptor(
         required_capabilities=required_capabilities,
         provided_capabilities=provided_capabilities,
         description=description,
+        icon=icon,
+        author=author,
+        services=services,
+        views=views,
+        commands=commands,
     )
 
 

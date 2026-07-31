@@ -82,18 +82,46 @@ class RSCInstitution:
 
 
 @dataclass(frozen=True, slots=True)
+class RSCProcessDocument:
+    document_id: str
+    name: str
+
+    def __post_init__(self) -> None:
+        _require_text(self.document_id, "document_id")
+        _require_text(self.name, "name")
+
+
+@dataclass(frozen=True, slots=True)
 class RSCProcessEvidence:
     evidence_id: str
     document_id: str
     description: str
     criterion_codes: tuple[str, ...] = ()
     metadata: tuple[tuple[str, str], ...] = ()
+    documents: tuple[RSCProcessDocument, ...] = ()
 
     def __post_init__(self) -> None:
         _require_text(self.evidence_id, "evidence_id")
         _require_text(self.document_id, "document_id")
         _require_text(self.description, "description")
         _require_text_tuple(self.criterion_codes, "criterion_codes")
+        if not isinstance(self.documents, tuple) or any(
+            not isinstance(item, RSCProcessDocument)
+            for item in self.documents
+        ):
+            raise TypeError(
+                "documents deve ser uma tupla de RSCProcessDocument."
+            )
+        _require_unique(
+            (item.document_id for item in self.documents),
+            "Document",
+        )
+        if self.documents and self.document_id not in {
+            item.document_id for item in self.documents
+        }:
+            raise RSCProcessError(
+                "document_id deve identificar um Document da Evidence."
+            )
         if not isinstance(self.metadata, tuple) or any(
             not isinstance(item, tuple)
             or len(item) != 2
@@ -111,6 +139,20 @@ class RSCProcessEvidence:
             raise RSCProcessError(
                 "A Evidence não pode repetir chaves de metadata."
             )
+
+
+@dataclass(frozen=True, slots=True)
+class RSCProcessPendingFact:
+    execution_fact_id: str
+    evidence_id: str
+    description: str
+    reason: str
+
+    def __post_init__(self) -> None:
+        _require_text(self.execution_fact_id, "execution_fact_id")
+        _require_text(self.evidence_id, "evidence_id")
+        _require_text(self.description, "description")
+        _require_text(self.reason, "reason")
 
 
 @dataclass(frozen=True, slots=True)
@@ -164,6 +206,7 @@ class RSCProcess:
     execution_facts: ExecutionFactCollection = field(
         default_factory=ExecutionFactCollection
     )
+    pending_execution_facts: tuple[RSCProcessPendingFact, ...] = ()
     validations: ExecutionValidationCollection = field(
         default_factory=ExecutionValidationCollection
     )
@@ -215,6 +258,29 @@ class RSCProcess:
             (item.evidence_id for item in self.evidences),
             "Evidence",
         )
+        if not isinstance(self.pending_execution_facts, tuple) or any(
+            not isinstance(item, RSCProcessPendingFact)
+            for item in self.pending_execution_facts
+        ):
+            raise TypeError(
+                "pending_execution_facts deve ser uma tupla de "
+                "RSCProcessPendingFact."
+            )
+        _require_unique(
+            (
+                item.execution_fact_id
+                for item in self.pending_execution_facts
+            ),
+            "ExecutionFact pendente",
+        )
+        evidence_ids = {item.evidence_id for item in self.evidences}
+        if any(
+            item.evidence_id not in evidence_ids
+            for item in self.pending_execution_facts
+        ):
+            raise RSCProcessError(
+                "ExecutionFact pendente deve referenciar Evidence do processo."
+            )
         for collection, expected_type, field_name in (
             (
                 self.execution_facts,
@@ -307,6 +373,7 @@ class RSCProcess:
     def record_execution_facts(
         self,
         facts: ExecutionFactCollection,
+        pending_facts: tuple[RSCProcessPendingFact, ...] = (),
     ) -> "RSCProcess":
         self._require_stage(
             RSCProcessStage.DRAFT,
@@ -314,12 +381,25 @@ class RSCProcess:
         )
         if not isinstance(facts, ExecutionFactCollection):
             raise TypeError("facts deve ser ExecutionFactCollection.")
+        if not isinstance(pending_facts, tuple) or any(
+            not isinstance(item, RSCProcessPendingFact)
+            for item in pending_facts
+        ):
+            raise TypeError(
+                "pending_facts deve ser uma tupla de RSCProcessPendingFact."
+            )
+        evidence_ids = {item.evidence_id for item in self.evidences}
+        if any(item.evidence_id not in evidence_ids for item in pending_facts):
+            raise RSCProcessError(
+                "ExecutionFact pendente deve referenciar Evidence do processo."
+            )
         self._require_catalog_codes(
             tuple(item.criterion_id for item in facts)
         )
         return replace(
             self,
             execution_facts=facts,
+            pending_execution_facts=pending_facts,
             stage=RSCProcessStage.FACTS,
             revision=self.revision + 1,
         )
@@ -624,8 +704,10 @@ __all__ = [
     "IntendedRSCLevel",
     "RSCInstitution",
     "RSCProcess",
+    "RSCProcessDocument",
     "RSCProcessError",
     "RSCProcessEvidence",
+    "RSCProcessPendingFact",
     "RSCProcessResult",
     "RSCProcessStage",
     "RSCServer",

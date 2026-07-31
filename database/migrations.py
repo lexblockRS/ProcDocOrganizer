@@ -10,6 +10,7 @@ from .schema import (
     MIGRATION_V5_STATEMENTS,
     MIGRATION_V6_STATEMENTS,
     MIGRATION_V7_STATEMENTS,
+    MIGRATION_V8_STATEMENTS,
     SUPPORTED_SCHEMA_VERSION,
 )
 
@@ -102,6 +103,12 @@ def _apply_migration_v7(connection: sqlite3.Connection) -> None:
     connection.execute("PRAGMA user_version = 7")
 
 
+def _apply_migration_v8(connection: sqlite3.Connection) -> None:
+    for statement in MIGRATION_V8_STATEMENTS:
+        connection.execute(statement)
+    connection.execute("PRAGMA user_version = 8")
+
+
 def apply_migrations(connection: sqlite3.Connection) -> None:
     """Aplica migrations pendentes em uma transação única."""
 
@@ -131,6 +138,8 @@ def apply_migrations(connection: sqlite3.Connection) -> None:
             _apply_migration_v6(connection)
         if current_version < 7:
             _apply_migration_v7(connection)
+        if current_version < 8:
+            _apply_migration_v8(connection)
         connection.commit()
     except (FTS5UnavailableError, SchemaVersionError):
         connection.rollback()
