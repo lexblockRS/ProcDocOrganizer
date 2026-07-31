@@ -1,7 +1,11 @@
-# Arquitetura da Camada de Apresentação — Release 1.6
+# Arquitetura da Camada de Apresentação — Beta 1.1
+
+## Estabilização C-004
+
+`MainWindow` é o shell oficial e `NavigationController.navigate()` é a única autoridade concreta de navegação. Dashboard, Review, Project Explorer e Resource Inspector encaminham Navigation Intents; adaptadores apenas reagem ao Workspace Snapshot resultante. Filtros do Review são `WorkspaceFilter`. Coverage e Insights são compostos na application composition root. `ExecuteEvaluationAction` é operação específica, separada de navegação.
 
 **Versão:** 1.0
-**Status:** referência arquitetônica oficial da Release 1.6
+**Status:** referência arquitetônica oficial, atualizada pela ADR-034
 **Escopo:** contratos de apresentação atualmente implementados
 
 ## Índice
@@ -60,7 +64,7 @@ Cada Store é a fonte autoritativa do estado que representa. Nenhum controller
 edita snapshots ou replica valores para se tornar uma segunda fonte de
 verdade.
 
-`PresentationContextStore` é um caso deliberadamente derivado: os três stores
+`PresentationContextStore` é um caso deliberadamente derivado: os stores
 observados continuam autoritativos, enquanto ele possui somente seu
 `PresentationSnapshot` consolidado.
 
@@ -248,7 +252,7 @@ possui revisão própria.
 **Responsabilidades.**
 
 - capturar os snapshots iniciais;
-- observar os três stores de origem;
+- observar os stores de origem, incluindo o Workspace;
 - substituir somente a referência interna que mudou;
 - publicar uma nova consolidação por mudança efetiva.
 
@@ -307,34 +311,40 @@ ao catálogo.
 
 ### 5.1 NavigationController
 
-**Responsabilidade.** Coordenar, em ordem, ativação de perspectiva, montagem
-do Workspace e limpeza opcional da seleção.
+**Responsabilidade.** Atuar como Navigation Service oficial definido pela
+ADR-034. Recebe uma `NavigationIntent` imutável, coordena perspectiva, seleção,
+filtros e contexto, e registra o `WorkspaceSnapshot` resultante no histórico.
+Não existe um segundo mecanismo de navegação.
 
 ```text
-PerspectiveId
+NavigationIntent
       │
       ▼
-PerspectiveStore.activate()
+NavigationController.navigate()
       │
       ▼
-WorkspaceStore.mount()
+PresentationContextStore.batch()
       │
       ▼
-SelectionStore.clear()  [quando configurado]
+WorkspaceSnapshot + NavigationHistoryEntry
 ```
 
-**Dependências.** `PerspectiveStore`, `WorkspaceStore` e `SelectionStore`.
+`navigate_to(PerspectiveId)` permanece como adaptador compatível e converte a
+solicitação para `OPEN_PERSPECTIVE`.
 
-**Ausência de estado.** Não possui snapshot, revisão, observers ou histórico.
-Mantém somente referências às dependências e a política de limpeza.
+**Estado.** Não possui snapshot autoritativo, revisão ou observers. Mantém o
+histórico linear exigido pela ADR como entradas imutáveis e um cursor. O
+snapshot continua pertencendo ao contexto; a entrada histórica apenas preserva
+o valor que será restaurado.
 
 **Responsabilidades proibidas.** Não cria views, executa factories, abre
-projetos, acessa domínio, implementa voltar/avançar ou mantém breadcrumbs.
+projetos, acessa domínio ou mantém breadcrumbs. `go_back()` e `go_forward()`
+restauram Stores exclusivamente pelo snapshot e nunca repetem a Intent.
 
-**Semântica de falha.** A navegação não é transacional. A primeira exceção
-interrompe chamadas posteriores e é propagada sem compensação. Stores já
-alterados preservam suas próprias invariantes, mas podem permanecer
-parcialmente atualizados.
+**Publicação atômica.** Alterações coordenadas são agregadas por
+`PresentationContextStore.batch()` e publicadas como uma única revisão do
+contexto. Falhas continuam sendo propagadas e não executam rollback de
+negócio.
 
 ### 5.2 OperationExecutor
 
@@ -412,11 +422,20 @@ Uma perspectiva é um ponto de vista declarativo, não uma View ou widget.
 
 | Tipo | Conteúdo | Observação |
 |---|---|---|
-| `PresentationSnapshot` | três snapshots internos e revisão | projeção derivada |
+| `PresentationSnapshot` | snapshots internos, Workspace e revisão | projeção derivada |
 | `WorkspaceState` | `EMPTY` ou `READY` | sem estado de carregamento |
-| `WorkspaceSnapshot` | estado, perspectiva montada, revisão | montagem somente lógica |
+| `WorkspaceSnapshot` | IDs contextuais, perspectiva, seleção, filtros, metadata e revisão | sessão de apresentação imutável |
 
-### 6.5 Operações
+### 6.5 Navegação contextual
+
+| Tipo | Conteúdo | Observação |
+|---|---|---|
+| `NavigationIntentType` | destinos tipados de navegação | inclui contratos de Deep Navigation |
+| `NavigationIntent` | tipo, alvo, projeto, origem, filtros e metadata | frozen, slotted e independente de toolkit |
+| `WorkspaceFilter` | ID e parâmetros escalares | pertence ao Workspace Context |
+| `NavigationHistoryEntry` | Intent e Snapshot resultante | infraestrutura sem comandos voltar/avançar |
+
+### 6.6 Operações
 
 | Tipo | Conteúdo | Observação |
 |---|---|---|
@@ -429,7 +448,7 @@ Uma perspectiva é um ponto de vista declarativo, não uma View ou widget.
 O token é intencionalmente mutável; a imutabilidade do contexto estabiliza a
 referência, não o sinal interno.
 
-### 6.6 Notificações
+### 6.7 Notificações
 
 | Tipo | Conteúdo | Observação |
 |---|---|---|
@@ -552,7 +571,7 @@ fim da chamada ──> Notification não é retida
 | `ApplicationStateStore` | biblioteca padrão |
 | `SelectionStore` | biblioteca padrão |
 | `PerspectiveStore` | biblioteca padrão |
-| `PresentationContextStore` | os três stores acima |
+| `PresentationContextStore` | stores de estado e Workspace |
 | `WorkspaceStore` | `PerspectiveStore` para consulta |
 | `NavigationController` | `PerspectiveStore`, `WorkspaceStore`, `SelectionStore` |
 | `OperationExecutor` | `ApplicationStateStore` |
@@ -596,9 +615,9 @@ Adicionalmente:
 6. Snapshots são imutáveis e substituídos, nunca editados.
 7. Mudanças redundantes não incrementam revisão nem notificam.
 8. Observers recebem um único DTO e suas falhas são isoladas.
-9. Factories de perspectiva não são executadas pelos contratos atuais.
+9. Factories de perspectiva são materializadas somente pelo adaptador Qt.
 10. Workspace representa montagem lógica, não composição de widgets.
-11. Navegação é sequencial e não transacional.
+11. Transições e restaurações são publicadas atomicamente pelo contexto.
 12. Operações são síncronas e canceláveis cooperativamente.
 13. Notificações são transitórias e não possuem replay.
 14. MainWindow não será proprietária dos estados definidos pelos Stores.
@@ -636,12 +655,12 @@ composição visual.
 A navegação é ação coordenada, não uma nova fonte de estado. O resultado pode
 ser observado nos stores proprietários.
 
-### 10.6 Navegação sem rollback manual
+### 10.6 Restauração por snapshot
 
-O fluxo atual é curto e composto por stores independentes. Compensação
-prematura produziria revisões e notificações artificiais. A não atomicidade é
-explícita; transações de interface só serão avaliadas quando houver integração
-concreta que as justifique.
+Voltar e avançar movem um cursor linear e restauram perspectiva, seleção,
+filtros, foco e IDs contextuais a partir do `WorkspaceSnapshot`. O
+`PresentationContextStore.batch()` publica uma única revisão consolidada. A
+Intent original não é reexecutada, e uma restauração não entra no histórico.
 
 ### 10.7 OperationExecutor síncrono
 
@@ -686,12 +705,9 @@ sensíveis não fazem parte dessas mensagens contratuais.
 <a id="roadmap"></a>
 ## 12. Próximos passos previstos
 
-Os passos seguintes são pontos de integração, não alterações desta
-arquitetura:
+Os contratos já estão compostos pela `MainWindow`, com adaptadores Qt e ligação
+entre perspectiva e widget. Os próximos passos permanecem:
 
-- composição dos contratos pela MainWindow;
-- adaptadores Qt para renderização e lifecycle;
-- ligação entre perspectiva lógica e widget concreto;
 - consumidores visuais de notificações;
 - backend de execução em background reutilizando o executor síncrono;
 - integração coordenada com a API pública da aplicação.

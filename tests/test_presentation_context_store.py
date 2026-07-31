@@ -207,7 +207,6 @@ class PresentationContextArchitectureTests(unittest.TestCase):
             "PySide",
             "PyQt",
             "main_window",
-            "workspace",
             "domain",
             "infrastructure",
             "facade",

@@ -240,6 +240,14 @@ class PerspectiveStore:
             )
         )
 
+    def restore(
+        self, perspective_id: PerspectiveId | None
+    ) -> PerspectiveSnapshot:
+        """Restaura a perspectiva ativa sem alterar o catálogo."""
+        if perspective_id is None:
+            return self.deactivate()
+        return self.activate(perspective_id)
+
     def subscribe(
         self, observer: PerspectiveObserver
     ) -> Callable[[], None]:

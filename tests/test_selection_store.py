@@ -40,12 +40,16 @@ class SelectionKindAndIdentityTests(unittest.TestCase):
                 ("DOCUMENT", "document"),
                 ("ACTIVITY", "activity"),
                 ("EVIDENCE", "evidence"),
+                ("EXECUTION_FACT", "execution_fact"),
                 (
                     "FUNCTIONAL_ASSIGNMENT",
                     "functional_assignment",
                 ),
                 ("FUNCTIONAL_EXERCISE", "functional_exercise"),
                 ("REQUIREMENT", "requirement"),
+                ("CRITERION", "criterion"),
+                ("EVALUATION", "evaluation"),
+                ("REPORT", "report"),
             ),
         )
 

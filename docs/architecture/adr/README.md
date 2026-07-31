@@ -32,6 +32,10 @@ os ADRs devem ser interpretados conforme os princípios gerais da
 | ADR-031 | Associações e política de exclusão | Define propriedade, cascade, restrição e exclusões explícitas. | Aceito | [ADR-031](ADR-031-associations-and-deletion-policy.md) |
 | ADR-032 | Estado inicial de Activity | Formaliza que Activity nasce lembrada, não comprovada. | Aceito | [ADR-032](ADR-032-activity-initial-state.md) |
 | ADR-033 | Avaliação Progressiva | Preserva avaliações parciais e fatos ainda sem Binding. | Aceito | [ADR-033](ADR-033-progressive-evaluation.md) |
+| ADR-034 | Presentation Workspace Navigation | Centraliza navegação orientada por intenções sobre snapshots imutáveis do contexto de apresentação. | Aceito | [ADR-034](ADR-034-presentation-workspace-navigation.md) |
+| ADR-035 | Resource Presentation Model | Define Resource como a projeção imutável e navegável oficial da camada de apresentação. | Aceito | [ADR-035](ADR-035-resource-presentation-model.md) |
+| ADR-036 | Workspace Insights | Define Insights derivados, explicáveis e não persistentes para condições relevantes do Workspace. | Aceito | [ADR-036](ADR-036-workspace-insights.md) |
+| ADR-037 | Coverage Analysis | Define Coverage como análise operacional, multidimensional, explicável e somente leitura. | Aceito | [ADR-037](ADR-037-coverage-analysis.md) |
 
 ## Lacunas de numeração
 

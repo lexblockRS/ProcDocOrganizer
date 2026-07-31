@@ -237,7 +237,6 @@ class NavigationArchitectureTests(unittest.TestCase):
         }
         forbidden = (
             "application_state",
-            "presentation_context",
             "pyside",
             "pyqt",
             "main_window",
@@ -275,7 +274,10 @@ class NavigationArchitectureTests(unittest.TestCase):
             "presentation.navigation",
             fromlist=["__all__"],
         )
-        self.assertEqual(module.__all__, ["NavigationController"])
+        self.assertEqual(
+            set(module.__all__),
+            {"NavigationController", "NavigationHistoryEntry"},
+        )
         self.assertIn("NavigationController", presentation.__all__)
 
 

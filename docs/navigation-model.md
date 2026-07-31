@@ -1,5 +1,47 @@
 # Modelo de Navegação do ProcDoc RSC
 
+> Estabilização C-006: a `MainWindow` é o shell produtivo, o Project Explorer
+> é uma perspectiva operacional e o histórico linear restaura snapshots por
+> `go_back()` e `go_forward()`. Filtros do Review usam `WorkspaceFilter` em
+> `active_filters`. `ExecuteEvaluationAction` permanece operação, não navegação.
+
+> **Fundação Beta 1.1 — ADR-034:** a navegação é orientada a recursos e
+> coordenada pelo `NavigationController`, que atua como Navigation Service.
+> Views emitem `NavigationIntent`; o contexto publica `WorkspaceSnapshot`
+> imutável. Filtros pertencem ao snapshot, e não às Views ou ao serviço.
+
+O fluxo independente de plataforma é:
+
+```text
+Navigation Intent
+        ↓
+Navigation Service
+        ↓
+PresentationContextStore
+        ↓
+Workspace Snapshot
+        ↓
+Presentation Adapters (Qt / Web / CLI)
+```
+
+Os contratos iniciais contemplam Dashboard, Document, Evidence,
+ExecutionFact, Requirement, Criterion, Evaluation e Report. A infraestrutura
+registra Intent e Snapshot resultante. A `MainWindow` oferece Voltar e Avançar
+no menu, toolbar e atalhos `Alt+Left` e `Alt+Right`.
+
+## Histórico linear
+
+Cada entrada contém `NavigationIntent + WorkspaceSnapshot resultante`. O cursor
+indica a entrada restaurada. `go_back()` e `go_forward()` restauram o snapshot
+atomicamente, sem executar novamente a Intent e sem acrescentar histórico.
+Os limites retornam `False`. Ao navegar depois de voltar, todas as entradas
+posteriores ao cursor são descartadas. Trocar ou fechar Project limpa entradas
+e desabilita os controles.
+
+CoverageResult, InsightCollection, Resources completos e ViewData nunca são
+armazenados. A publicação do snapshot restaurado provoca nova projeção de
+Coverage e Insights pelos consumidores produtivos.
+
 ## 1. Objetivo
 
 Este documento define os espaços de trabalho do ProcDoc RSC e a lógica pela

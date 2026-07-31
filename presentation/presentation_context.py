@@ -1,7 +1,8 @@
 """Visão consolidada e observável do estado global da apresentação."""
 
 from collections.abc import Callable
-from dataclasses import dataclass, replace
+from contextlib import contextmanager
+from dataclasses import dataclass, field, replace
 import logging
 
 from .application_state import (
@@ -10,6 +11,7 @@ from .application_state import (
 )
 from .perspectives import PerspectiveSnapshot, PerspectiveStore
 from .selection import SelectionSnapshot, SelectionStore
+from .workspace import WorkspaceSnapshot, WorkspaceStore
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +27,7 @@ class PresentationSnapshot:
     selection: SelectionSnapshot
     perspective: PerspectiveSnapshot
     revision: int = 0
+    workspace: WorkspaceSnapshot = field(default_factory=WorkspaceSnapshot)
 
     def __post_init__(self) -> None:
         if not isinstance(
@@ -45,6 +48,8 @@ class PresentationSnapshot:
             raise TypeError("revision deve ser inteiro.")
         if self.revision < 0:
             raise ValueError("revision não pode ser negativa.")
+        if not isinstance(self.workspace, WorkspaceSnapshot):
+            raise TypeError("workspace deve ser WorkspaceSnapshot.")
 
 
 PresentationObserver = Callable[[PresentationSnapshot], None]
@@ -58,6 +63,7 @@ class PresentationContextStore:
         application_state_store: ApplicationStateStore,
         selection_store: SelectionStore,
         perspective_store: PerspectiveStore,
+        workspace_store: WorkspaceStore | None = None,
     ) -> None:
         if not isinstance(application_state_store, ApplicationStateStore):
             raise TypeError(
@@ -71,19 +77,32 @@ class PresentationContextStore:
             raise TypeError(
                 "perspective_store deve ser PerspectiveStore."
             )
+        if workspace_store is not None and not isinstance(
+            workspace_store, WorkspaceStore
+        ):
+            raise TypeError("workspace_store deve ser WorkspaceStore ou None.")
 
         self._snapshot = PresentationSnapshot(
             application_state=application_state_store.snapshot,
             selection=selection_store.snapshot,
             perspective=perspective_store.snapshot,
+            workspace=(
+                WorkspaceSnapshot()
+                if workspace_store is None
+                else workspace_store.snapshot
+            ),
         )
         self._observers: list[PresentationObserver] = []
+        self._batch_depth = 0
+        self._pending_changes: dict[str, object] = {}
 
         application_state_store.subscribe(
             self._on_application_state_changed
         )
         selection_store.subscribe(self._on_selection_changed)
         perspective_store.subscribe(self._on_perspective_changed)
+        if workspace_store is not None:
+            workspace_store.subscribe(self._on_workspace_changed)
 
     @property
     def snapshot(self) -> PresentationSnapshot:
@@ -118,7 +137,29 @@ class PresentationContextStore:
     ) -> None:
         self._update(perspective=snapshot)
 
+    def _on_workspace_changed(self, snapshot: WorkspaceSnapshot) -> None:
+        self._update(workspace=snapshot)
+
+    @contextmanager
+    def batch(self):
+        """Publica uma transição coordenada como uma única revisão."""
+        self._batch_depth += 1
+        try:
+            yield
+        finally:
+            self._batch_depth -= 1
+            if self._batch_depth == 0 and self._pending_changes:
+                changes = self._pending_changes
+                self._pending_changes = {}
+                self._commit_changes(changes)
+
     def _update(self, **changes: object) -> None:
+        if self._batch_depth:
+            self._pending_changes.update(changes)
+            return
+        self._commit_changes(changes)
+
+    def _commit_changes(self, changes: dict[str, object]) -> None:
         if all(
             getattr(self._snapshot, field) == value
             for field, value in changes.items()
